@@ -1,3 +1,8 @@
 .vscode/
 meshes/
 builds/
+cache/
+src/resources/animationsetdatasinglefile.txt
+/src/__pycache__
+src/resources/animationdatasinglefile.txt
+src/resources/dirlist.txt
