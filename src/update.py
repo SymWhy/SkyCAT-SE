@@ -1,20 +1,18 @@
 import pandas as pd
 import os.path
 
-import defs
+import config
 
 class Updater:
     
     @staticmethod
-    def update_animdata(animdata):
+    def update_animdata(cfg, animdata):
         readable = open(animdata, "r")
 
         data = pd.DataFrame(columns=["project_name", # name of project
                                     "project_type", # whether it's a creature or noncreature project
                                     "project_start", # line number where project starts
-                                    "project_start_bits", # bit where the project starts
                                     "project_end", # line number where project ends
-                                    "project_end_bits", # bit where the project ends
                                     "lines_anims", # expected number of lines for base anim data
                                     "lines_boundanims", # expected number of lines for bound anim data. 0 if nonexistant.
                                     ])
@@ -48,7 +46,6 @@ class Updater:
                 new_row = {
                     "project_name": p_dict[i].lower(),
                     "project_start": line_count + 1,
-                    "project_start_bits": readable.tell()
                     }
                 
                 # Append new row to DataFrame
@@ -154,28 +151,26 @@ class Updater:
                 # print(data.head())
                 # break
 
-            data.to_csv("skycat\\cache\\animdata_index.csv", index=False)
+            data.to_csv(cfg.cache + "\\animdata_index.csv", index=False)
         finally:
             readable.close()
 
     @staticmethod
-    def update_animsetdata(animsetdata):
+    def update_animsetdata(cfg, animsetdata):
         
         # check if we already have a csv, if not run update_animdata()
         try:
-            if not os.path.isfile("skycat\\cache\\animdata_index.csv"):
-                Updater.update_animdata(defs.animdata)
+            if not os.path.isfile(cfg.cache + "\\animdata_index.csv"):
+                Updater.update_animdata(cfg, config.animdata)
         except:
-            print("Error: Can't find CSV!")
+            print("Error: Can't find CSV! Was this run out of order?")
 
-        animdata_csv = pd.read_csv("skycat\\cache\\animdata_index.csv")
+        animdata_csv = pd.read_csv(cfg.cache + "\\animdata_index.csv")
         
         # create empty dataframe
         data = pd.DataFrame(columns=["animset_name", # name of project
                                     "animset_start", # line number where project starts
-                                    "animset_start_bits", # bit where the project starts
                                     "animset_end", # line number where project ends
-                                    "animset_end_bits", # bit where the project ends
                                     "lines_animsets", # expected number of lines for base animset data
                                     ])
 
@@ -287,7 +282,16 @@ class Updater:
                         data.at[project_index, "lines_animsets"] = (line_count + 1) - data.at[project_index, "animset_start"]
 
             # print(data.head())
-            data.to_csv("skycat\\cache\\animsetdata_index.csv", index=False)
+            data.to_csv(cfg.cache + "\\animsetdata_index.csv", index=False)
 
         finally:
             readable.close()
+
+
+    @staticmethod
+    def update_all(cfg):
+        print("Updating animdata index...")
+        Updater.update_animdata(cfg, config.animdata)
+        print("Updating animsetdata index...")
+        Updater.update_animsetdata(cfg, config.animsetdata)
+        print("Update complete.")

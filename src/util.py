@@ -1,56 +1,49 @@
 import os
-from shutil import copyfile
-import sys
+from pathlib import Path
+import tkinter.filedialog as filedialog
 
-def sanitize_cache():
+import sse_bsa
+
+def sanitize_cache(cfg, cfgparser):
 
     # make sure all our resource files are available
-    if (not os.path.exists("skycat\\src\\resources\\animationdatasinglefile.txt") 
-        or not os.path.exists("skycat\\src\\resources\\animationsetdatasinglefile.txt")
-        or not os.path.exists("skycat\\src\\resources\\dirlist.txt")):
-        print("Error: Source files corrupt! You may need to reinstall.")
-
-    if not os.path.exists("meshes"):
-        print("Warning: Can't find meshes/ folder. Press any key to exit.")
+    if (not os.path.exists("src\\resources\\vanilla_projects.txt")):
+        print("Error: Source files corrupt! You may need to reinstall SkyCAT SE.")
         os.system('pause')
-        sys.exit()
+        return
 
-    # make sure our actual animation cache exists
-    if not os.path.exists("meshes\\animationdatasinglefile.txt"):
+    # prompt the user to navigate to the Skyrim SE directory
+    if not os.path.exists(cfg.skyrim):
+        new_path = filedialog.askdirectory(title="Select Skyrim SE Data folder.", mustexist=True)
+        cfg.write_to_config(cfgparser, 'PATHS', 'sPathSSE', new_path)
+
+    # make sure the animation cache is unpacked from the bsa.
+    if not os.path.exists(cfg.skyrim + "\\meshes\\animationdatasinglefile.txt") or not os.path.exists(cfg.skyrim + "\\meshes\\animationdatasinglefile.txt"):
+        
+        # if we are missing the animations bsa entirely, abort.
+        if not os.path.exists(cfg.skyrim + "\\Skyrim - Animations.bsa"):
+            print("Error: could not find Skyrim - Animations.bsa. Please verify integrity of game files.")
+            os.system('pause')
+            return
+
+
         to_next = False
         while to_next == False:
-            print('You are missing your "animationdatasinglefile.txt" file. Replace with default? Y/N')
+            print("Animation cache appears to be missing. Unpack? Y/N")
             response = input().lower()
             match response:
                 case 'y':
-                    copyfile("skycat\\src\\resources\\animationdatasinglefile.txt", "meshes\\animationdatasinglefile.txt")
+                    # unpack the necessary files
+                    anims_archive = sse_bsa.BSAArchive(Path(cfg.skyrim + "\\skyrim - animations.bsa"))
+                    anims_archive.extract_file("meshes\\animationdatasinglefile.txt", Path(cfg.skyrim))
+                    anims_archive.extract_file("meshes\\animationsetdatasinglefile.txt", Path(cfg.skyrim))
                     to_next = True
+                    
                 case 'n':
-                    print("Warning: SkyCAT cannot operate without the animation cache files. Press any key to exit.")
+                    print("Warning: SkyCAT SE cannot operate without a valid cache.")
                     os.system('pause')
-                    sys.exit()
-        
+                    return
+    if not os.path.exists(cfg.cache):
+        os.makedirs(cfg.cache)
 
-    if not os.path.exists("meshes\\animationsetdatasinglefile.txt"):
-        to_next = False
-        while to_next == False:
-            print('You are missing your "animationsetdatasinglefile.txt" file. Replace with default? Y/N')
-            response = input().lower()
-            match response:
-                case 'y':
-                    copyfile("skycat\\src\\resources\\animationsetdatasinglefile.txt", "meshes\\animationsetdatasinglefile.txt")
-                    to_next = True
-                case 'n':
-                    print("Warning: SkyCAT cannot operate without the animation cache files. Press any key to exit.")
-                    os.system('pause')
-                    sys.exit()
-        
-
-    # check if we need to update the program cache
-    if not os.path.exists("skycat\\cache\\animdata_index.csv"):
-        return "animdata"
-    
-    elif not os.path.exists("skycat\\cache\\animdata_index.csv"):
-        return "animsetdata"
-    
-    else: return None
+    return True

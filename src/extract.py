@@ -1,27 +1,27 @@
 import pandas as pd
 import os.path
 
-import defs
+import config
 
-class Search:
+class Extractor:
 
     @staticmethod
-    def extract_project(query):
+    def unpack_project(cfg, query):
 
         query = query.lower()
 
         # check if we've generated our cache files
-        if not os.path.exists("skycat\\cache\\animdata_index.csv"):
+        if not os.path.exists(cfg.cache + "\\animdata_index.csv"):
             print("Error: Can't find animdata csv.")
             return
-        
-        animdata_csv = pd.read_csv("skycat\\cache\\animdata_index.csv")
 
-        if not os.path.exists("skycat\\cache\\animsetdata_index.csv"):
+        animdata_csv = pd.read_csv(cfg.cache + "\\animdata_index.csv")
+
+        if not os.path.exists(cfg.cache + "\\animsetdata_index.csv"):
             print("Error: Can't find animsetdata csv.")
             return
-        
-        animsetdata_csv = pd.read_csv("skycat\\cache\\animsetdata_index.csv")
+
+        animsetdata_csv = pd.read_csv(cfg.cache + "\\animsetdata_index.csv")
 
         # note: each project must have a unique name!
         # perhaps if we recieve a duplicate, we simply replace?
@@ -40,7 +40,7 @@ class Search:
         ### ANIMATIONDATA ###
 
         # check that our directory exists
-        animdata_dir = "meshes\\animationdata"
+        animdata_dir = config.skyrim + "meshes\\animationdata"
 
         if not os.path.exists(animdata_dir):
             os.makedirs(animdata_dir)
@@ -58,13 +58,15 @@ class Search:
         # write the animdata cache file
         try:
             # open the animdata file
-            readable = open(defs.animdata, "r")
+            readable = open(config.animdata, "r")
 
             try:
                 animdata_cache = open(os.path.join(animdata_dir, query + ".txt"), 'w')
 
-                # find the exact bit where the project starts
-                readable.seek(int(animdata_csv.at[project_index, "project_start_bits"]))
+                # read lines up to the project start
+                for _ in range(int(animdata_csv.at[project_index, "project_start"])):
+                    animdata_cache.write(readable.readline())
+
 
                 # skip line count
                 readable.readline()
@@ -85,7 +87,7 @@ class Search:
             # write the boundanims cache file
             if isCreature:
 
-                boundanims_dir = "meshes\\animationdata\\boundanims"
+                boundanims_dir = config.skyrim + "meshes\\animationdata\\boundanims"
                 if not os.path.exists(boundanims_dir):
                     os.makedirs(boundanims_dir)
 
@@ -120,7 +122,7 @@ class Search:
 
         if isCreature:
             # check that our directory exists
-            animsetdata_dir = "meshes\\animationsetdata"
+            animsetdata_dir = config.skyrim +"meshes\\animationsetdata"
 
             if not os.path.exists(animsetdata_dir):
                 os.makedirs(animsetdata_dir)
@@ -139,7 +141,7 @@ class Search:
 
             try:
                 # open the animdata file
-                readable = open(defs.animsetdata, "r")
+                readable = open(config.animsetdata, "r")
 
                 readable.seek(animsetdata_csv.at[animset_index, "animset_start_bits"])
 
@@ -250,9 +252,9 @@ class Search:
 
 
     @staticmethod
-    def extract_all_projects(and_i_mean_all_of_them = False):
+    def unpack_all(cfg, and_i_mean_all_of_them = False):
 
-        vanilla_dirlist = open("skycat\\src\\resources\\dirlist.txt", "r")
+        vanilla_dirlist = open("src\\resources\\vanilla_projects.txt", "r")
 
         vanilla_projects = []
 
@@ -267,7 +269,7 @@ class Search:
 
         vanilla_projects_count = len(vanilla_projects)
 
-        animdata_csv = pd.read_csv("skycat\\cache\\animdata_index.csv")
+        animdata_csv = pd.read_csv(cfg.cache + "\\animdata_index.csv")
         
         # get count for total projects
         total_projects = animdata_csv.shape[0]                  
@@ -296,10 +298,10 @@ class Search:
 
             match extract_everything:
                 case True:
-                    Search.extract_project(project_name)
+                    Extractor.extract_project(project_name)
 
                 case False:
                         if project_name not in vanilla_projects:
-                            Search.extract_project(project_name)
+                            Extractor.extract_project(project_name)
 
         return
