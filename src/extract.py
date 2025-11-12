@@ -143,7 +143,9 @@ class Extractor:
                 # open the animdata file
                 readable = open(config.animsetdata, "r")
 
-                readable.seek(animsetdata_csv.at[animset_index, "animset_start_bits"])
+                # skip to the project start
+                for _ in range(int(animsetdata_csv.at[animset_index, "animset_start"])):
+                    readable.readline()
 
                 # get the expected number of animation sets
                 animset_count = int(readable.readline().strip())

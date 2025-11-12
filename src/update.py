@@ -142,7 +142,6 @@ class Updater:
                     
                 # Mark the project end
                 data.at[i, "project_end"] = line_count
-                data.at[i, "project_end_bits"] = readable.tell()
 
                 i += 1
                 # print(line_count) # expecting 9792
@@ -209,7 +208,6 @@ class Updater:
                 # record project name, line and bit count
                 data.at[project_index, "animset_name"] = project_name.lower()
                 data.at[project_index, "animset_start"] = line_count + 1
-                data.at[project_index, "animset_start_bits"] = readable.tell()
 
                 # record expected anim count
                 set_count = int(readable.readline().strip())
@@ -278,7 +276,6 @@ class Updater:
 
                     if i == set_count - 1:
                         data.at[project_index, "animset_end"] = line_count
-                        data.at[project_index, "animset_end_bits"] = readable.tell()
                         data.at[project_index, "lines_animsets"] = (line_count + 1) - data.at[project_index, "animset_start"]
 
             # print(data.head())
