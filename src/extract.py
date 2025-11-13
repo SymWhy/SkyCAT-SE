@@ -12,6 +12,7 @@ class Extractor:
 
 
     def extract_projects(self, ud, cfg, listprojects):
+
         # check if we've generated our cache files
         if not os.path.exists(cfg.cache + "\\animdata_index.csv") or not os.path.exists(cfg.cache + "\\animsetdata_index.csv"):
             print("Updating cache files...")
@@ -27,6 +28,23 @@ class Extractor:
             if util.is_in_cache(ud, project) == False:
                 print(f"Warning: Project {project} not found. Skipping...")
                 continue
+
+            # check if there are already extracted files in meshes
+            if util.is_unpacked(cfg, project):
+                print(f"Warning: Project {project} already has extracted files. Overwrite? Y/N")
+                extract_ok = False
+                while True:
+                    match input().lower():
+                        case 'y':
+                            extract_ok = True
+                            break
+                        case 'n':
+                            print(f"Skipping extraction of {project}.")
+                            extract_ok = False
+                            break
+                if not extract_ok:
+                    continue
+                
 
             project_index = ud.cached_projects.index(project)
             animset_index = None

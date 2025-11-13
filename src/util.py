@@ -52,7 +52,7 @@ def is_in_cache(ud, project_name):
         return True
     return False
 
-def is_unpacked(ud, cfg, project_name):
+def is_unpacked(cfg, project_name):
     has_animdata = False
     has_boundanims = False
     has_animsetdata = False
