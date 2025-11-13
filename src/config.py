@@ -15,12 +15,12 @@ class Configurator:
     # configurables
     skyrim = 'C:\\Steam\\steamapps\\common\\Skyrim Special Edition\\Data'
     cache = os.path.expanduser('~') + '\\AppData\\Local\\SkyCAT-SE\\cache\\'
-    backups = '\\backups'
+    backups = os.getcwd() + '\\backups'
 
     def setup_config(self, cfgparser):        
         cfgparser['PATHS'] = {'sPathSSE': 'C:\\Steam\\steamapps\\common\\Skyrim Special Edition\\Data',
                           'sPathCache': os.path.expanduser('~') + '\\AppData\\Local\\SkyCAT-SE\\cache\\',
-                          'sPathBackups': os.path.expanduser('~') + '\\backups'}
+                          'sPathBackups': os.getcwd() + '\\backups'}
         with open('skycat.ini', 'w') as configfile:
             cfgparser.write(configfile)
 

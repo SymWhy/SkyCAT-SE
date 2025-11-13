@@ -35,9 +35,7 @@ def sanitize_cache(cfg, cfgparser):
             match response:
                 case 'y':
                     # unpack the necessary files
-                    anims_archive = sse_bsa.BSAArchive(Path(cfg.skyrim + "\\skyrim - animations.bsa"))
-                    anims_archive.extract_file("meshes\\animationdatasinglefile.txt", Path(cfg.skyrim))
-                    anims_archive.extract_file("meshes\\animationsetdatasinglefile.txt", Path(cfg.skyrim))
+                    unpack_vanilla_cache(cfg)
                     to_next = True
                     
                 case 'n':
@@ -54,6 +52,24 @@ def is_in_cache(ud, project_name):
         return True
     return False
 
+def is_unpacked(ud, cfg, project_name):
+    has_animdata = False
+    has_boundanims = False
+    has_animsetdata = False
+
+    # check for animdata file
+    if os.path.exists(cfg.skyrim + f"\\meshes\\animationdata\\{project_name}.txt"):
+        has_animdata = True
+       
+    # check for boundanims file if expected
+    if os.path.exists(cfg.skyrim + f"\\meshes\\animationdata\\boundanims\\anims_{project_name}.txt"):
+        has_boundanims = True
+
+    # check for animsetdata file
+    if not os.path.exists(cfg.skyrim + f"\\meshes\\animationsetdata\\{project_name}data\\{project_name}.txt"):
+       has_animsetdata = True 
+    return [has_animdata, has_boundanims, has_animsetdata]
+
 def is_creature(ud, project_name):
     animdata_csv = pd.read_csv(ud.animdata_csv)
     creaturelist = animdata_csv[animdata_csv['is_creature'] == 1]['project_name'].tolist()
@@ -67,19 +83,25 @@ def can_be_merged(ud, cfg, project_name):
         print(f"Warning: {project_name} must be unique.")
         return False
     
-    # check for animdata file
-    if not os.path.exists(cfg.skyrim + f"\\meshes\\animationdata\\{project_name}.txt"):
-        print(f"Warning: Missing animation data file for {project_name}.")
-        return False
-    
-    if is_creature(ud, project_name):
+    unpacked = is_unpacked(ud, cfg, project_name)
 
-    # check for boundanims file if expected
-        if not os.path.exists(cfg.skyrim + f"\\meshes\\animationdata\\boundanims\\anims_{project_name}.txt"):
-            print(f"Warning: Missing boundanims file for creature {project_name}.")
+    if unpacked[0]:
+        # if animdata with boundanims and not animsetdata, or vice versa, return false
+        if unpacked[1] and not unpacked[2] or unpacked[2] and not unpacked[1]:
             return False
-    # check for animsetdata file
-        if not os.path.exists(cfg.skyrim + f"\\meshes\\animationsetdata\\{project_name}data\\{project_name}.txt"):
-            print(f"Warning: Missing animationset data file for creature {project_name}.")
-            return False
-    return True
+        
+        # if animdata with no boundanims or animsetdata, return true
+        if not unpacked[1] and not unpacked[2]:
+            return True
+        
+        # if everything is unpacked, return true
+        if unpacked[0] and unpacked[1] and unpacked[2]:
+            return True
+    # if no animdata, return false
+    return False
+
+def unpack_vanilla_cache(cfg):
+    anims_archive = sse_bsa.BSAArchive(Path(cfg.skyrim + "\\skyrim - animations.bsa"))
+    anims_archive.extract_file("meshes\\animationdatasinglefile.txt", Path(cfg.skyrim))
+    anims_archive.extract_file("meshes\\animationsetdatasinglefile.txt", Path(cfg.skyrim))
+    return 0
