@@ -1,3 +1,5 @@
+Note: Updated python version "SkyCAT-SE" in progress. The old version of CCAT is still available on the main for educational purposes, but does not work properly, hence the rebuilding.
+
 # Creature Cache Assembly Tool for Skyrim SE
 Small Java app to patch custom havok creature projects.
 
