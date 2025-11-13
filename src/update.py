@@ -1,13 +1,36 @@
+from pathlib import Path
 import pandas as pd
 import os.path
 
 import config
 
 class Updater:
-    
-    @staticmethod
-    def update_animdata(cfg, animdata):
-        readable = open(animdata, "r")
+
+    cached_projects = []
+    vanilla_projects = []
+    new_projects = []
+    creature_projects = []
+
+    animdata_csv = None
+    animsetdata_csv = None
+
+    def __init__(self):
+        if not os.path.exists("src\\resources\\vanilla_projects.txt"):
+            print("Error: Missing vanilla projects list. You may need to reinstall the program.")
+            return
+        
+        vanilla_dirlist = open("src\\resources\\vanilla_projects.txt", "r")
+
+        # get all our vanilla project names
+        for line in vanilla_dirlist:
+            if line == "":
+                break
+            
+            self.vanilla_projects.append(line.strip().lower())
+        vanilla_dirlist.close()
+
+    def update_animdata(self, cfg, animdata):
+        readable = open(cfg.skyrim + animdata, "r")
 
         data = pd.DataFrame(columns=["project_name", # name of project
                                     "project_type", # whether it's a creature or noncreature project
@@ -29,7 +52,7 @@ class Updater:
         try:
             # get project count
             total_projects = int(readable.readline().strip())
-            print("Expecting {} total projects.".format(total_projects))
+            print(f"Expecting {total_projects} total projects.")
             line_count += 1
 
             # get project names
@@ -38,14 +61,14 @@ class Updater:
                 p_dict[i] = myName
                 line_count += 1
 
-            # print(line_index) # expecting 430, got 430
+            # print(line_index) # expecting 430, got 
                 
             # typical read loop
             for i in range(total_projects):
                 # Add new row for current project
                 new_row = {
                     "project_name": p_dict[i].lower(),
-                    "project_start": line_count + 1,
+                    "project_start": line_count, # this is the line right before the project starts
                     }
                 
                 # Append new row to DataFrame
@@ -68,7 +91,7 @@ class Updater:
 
                 # print(line_count) # expecting 431, got 431
 
-                print("Reading project: {}".format(p_dict[i]))
+                print(f"Reading project: {project_name}")
                 
 
                 # skip a line that is identical (1) on all projects
@@ -150,21 +173,34 @@ class Updater:
                 # print(data.head())
                 # break
 
-            data.to_csv(cfg.cache + "\\animdata_index.csv", index=False)
+            data.to_csv(cfg.cache + config.animdata_csv_path, index=False)
+            # check if the csv was actually written
+            if not os.path.isfile(cfg.cache + config.animdata_csv_path):
+                print("Error: Could not write CSV file!")
+                return
+
+            # save csv path to class variable
+            self.animdata_csv = pd.read_csv(cfg.cache + config.animdata_csv_path)
+
         finally:
             readable.close()
 
-    @staticmethod
-    def update_animsetdata(cfg, animsetdata):
+        self.cached_projects = data['project_name'].tolist()
+
+        self.creature_projects = data[data['project_type'] == "creature"]['project_name'].tolist()
+
+        self.new_projects = [proj for proj in self.cached_projects if proj not in self.vanilla_projects]
+
+    def update_animsetdata(self, cfg, animsetdata):
         
         # check if we already have a csv, if not run update_animdata()
         try:
-            if not os.path.isfile(cfg.cache + "\\animdata_index.csv"):
+            if not os.path.isfile(cfg.cache + config.animdata_csv_path):
                 Updater.update_animdata(cfg, config.animdata)
         except:
             print("Error: Can't find CSV! Was this run out of order?")
 
-        animdata_csv = pd.read_csv(cfg.cache + "\\animdata_index.csv")
+        animdata_csv = pd.read_csv(cfg.cache + config.animdata_csv_path)
         
         # create empty dataframe
         data = pd.DataFrame(columns=["animset_name", # name of project
@@ -174,13 +210,13 @@ class Updater:
                                     ])
 
         # first we need to find how many projects have boundanims + root motion
-        project_count = len(animdata_csv[(animdata_csv['project_type'] == "creature")])
+        project_count = len(self.creature_projects)
 
         # initialize line count to 0
         line_count = 0
 
         # open the animsetdata file
-        readable = open(animsetdata, "r")
+        readable = open(cfg.skyrim + animsetdata, "r")
 
         try:
             # make sure we're expecting the right number of projects
@@ -198,16 +234,14 @@ class Updater:
             
             # print(line_count) # expecting 50, got 50
 
-            # initialize creature name list
-            creatures_list = animdata_csv[animdata_csv['project_type'] == "creature"].loc[:, 'project_name'].tolist()
-
             for project_index in range(project_count):
 
-                project_name = creatures_list[project_index]
+                # get project name from cached creature list
+                project_name = self.creature_projects[project_index]
                 
                 # record project name, line and bit count
                 data.at[project_index, "animset_name"] = project_name.lower()
-                data.at[project_index, "animset_start"] = line_count + 1
+                data.at[project_index, "animset_start"] = line_count
 
                 # record expected anim count
                 set_count = int(readable.readline().strip())
@@ -281,14 +315,23 @@ class Updater:
             # print(data.head())
             data.to_csv(cfg.cache + "\\animsetdata_index.csv", index=False)
 
+            # check if the csv was actually written
+            if not os.path.isfile(cfg.cache + config.animdata_csv_path):
+                print("Error: Could not write CSV file!")
+                return
+            
+            # save csv dataframe to class variable
+            self.animsetdata_csv = pd.read_csv(cfg.cache + "\\animsetdata_index.csv")
+
         finally:
             readable.close()
 
 
-    @staticmethod
-    def update_all(cfg):
+
+    def update_all(self, cfg):
         print("Updating animdata index...")
-        Updater.update_animdata(cfg, config.animdata)
+        self.update_animdata(cfg, config.animdata)
         print("Updating animsetdata index...")
-        Updater.update_animsetdata(cfg, config.animsetdata)
+        self.update_animsetdata(cfg, config.animsetdata)
         print("Update complete.")
+        return 0

@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+import pandas as pd
 import tkinter.filedialog as filedialog
 
 import sse_bsa
@@ -46,4 +47,39 @@ def sanitize_cache(cfg, cfgparser):
     if not os.path.exists(cfg.cache):
         os.makedirs(cfg.cache)
 
+    return True
+
+def is_in_cache(ud, project_name):
+    if project_name in ud.cached_projects:
+        return True
+    return False
+
+def is_creature(ud, project_name):
+    animdata_csv = pd.read_csv(ud.animdata_csv)
+    creaturelist = animdata_csv[animdata_csv['is_creature'] == 1]['project_name'].tolist()
+    if project_name in creaturelist:
+        return True
+    return False
+
+def can_be_merged(ud, cfg, project_name):
+    # check if project is in cache
+    if is_in_cache(ud, project_name):
+        print(f"Warning: {project_name} must be unique.")
+        return False
+    
+    # check for animdata file
+    if not os.path.exists(cfg.skyrim + f"\\meshes\\animationdata\\{project_name}.txt"):
+        print(f"Warning: Missing animation data file for {project_name}.")
+        return False
+    
+    if is_creature(ud, project_name):
+
+    # check for boundanims file if expected
+        if not os.path.exists(cfg.skyrim + f"\\meshes\\animationdata\\boundanims\\anims_{project_name}.txt"):
+            print(f"Warning: Missing boundanims file for creature {project_name}.")
+            return False
+    # check for animsetdata file
+        if not os.path.exists(cfg.skyrim + f"\\meshes\\animationsetdata\\{project_name}data\\{project_name}.txt"):
+            print(f"Warning: Missing animationset data file for creature {project_name}.")
+            return False
     return True
