@@ -5,7 +5,9 @@ from pathlib import Path
 
 import config, util
 
-def save_backup(cfg, prefix="backup_"):
+def save_backup(prefix="backup_"):
+    cfg = config.require_config()
+    
     if not os.path.exists(cfg.backups):
         os.makedirs(cfg.backups)
 
@@ -37,7 +39,8 @@ def save_backup(cfg, prefix="backup_"):
     print("Creating backup...")
     copy_backups(animdata_src, animsetdata_src, animdata_dst, animsetdata_dst)
 
-def load_backup(cfg):
+def load_backup():
+    cfg = config.require_config()
     backups_path = Path(cfg.backups)
 
     # make sure the backups directory exists and is a folder, and contains files
@@ -120,12 +123,13 @@ def copy_backups(animdata_src, animsetdata_src, animdata_dst, animsetdata_dst):
             os.remove(str(old_animsetdata))
         return
 
-def restore_vanilla_cache(cfg):
+def restore_vanilla_cache():
+    cfg = config.require_config()
     while True:
         print("Note: This will overwrite your current animation cache with the vanilla cache. Continue? Y/N")
         match input().lower():
             case 'y':
-                util.unpack_vanilla_cache(cfg)
+                util.unpack_vanilla_cache()
                 print("Vanilla cache restored.")
                 return
             case 'n':

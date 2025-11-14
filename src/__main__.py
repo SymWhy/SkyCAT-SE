@@ -1,37 +1,11 @@
 import sys
 import os
 import argparse
-import configparser
 
-import config, util, system
+import config, system, update
 
-# random note: the individual cache files that ship with the game are not up to date.
-# they should not be used to rebuild the cache, that will break your game!
+import extract, append
 
-def bootstrap():
-    # instantiate code objects
-    cfgparser = configparser.ConfigParser()
-    cfg = config.Configurator()
-
-    # load values from config
-    if not os.path.exists('skycat.ini'):
-        cfg.setup_config(cfgparser)
-    cfg.load_config(cfgparser)
-
-    # make sure the cache is valid every time, quit on failure.
-    if not util.sanitize_cache(cfg, cfgparser):
-        return
-    
-    # later instantiated code objects
-    import update, extract, append
-    ud = update.Updater()
-    ex = extract.Extractor(ud, cfg)
-    # ap = append.Appender()
-
-    # initial cache sync
-    ud.update_all(cfg)
-
-    return ud, ex, cfg
 
 def build_parser():
   
@@ -80,40 +54,43 @@ def has_cli_actions(parsed_args) -> bool:
     ])
 
 
-def process_cli(args, ud, ex, cfg):
+def process_cli(args):
+    ud = update.require_update()
     #Run actions requested via command-line arguments and exit.
 
     # process gui first, even if other actions are requested
     if args.gui:
         # its not really a gui yet but i'll get there
-        interactive_loop(ud, ex, cfg)
+        interactive_loop()
 
     if args.update:
-        ud.update_all(cfg)
+        ud.update_all()
 
     if args.extract:
         # extract may be a list of project names
-        ex.extract_projects(ud, cfg, args.extract)
+        extract.extract_projects(args.extract)
 
     if args.extractall:
         if args.ireallymeanit:
-            ex.extract_all_projects(ud, cfg, and_i_mean_all_of_them=True)
+            extract.extract_all_projects(and_i_mean_all_of_them=True)
         else:
-            ex.extract_all_projects(ud, cfg)
+            extract.extract_all_projects()
 
     if args.append:
-        # ap.append_projects(ud, args.append)
+        # append_projects(args.append)
         pass
 
     if args.backup:
-        system.save_backup(cfg)
+        system.save_backup()
 
     if args.restore:
-        system.load_backup(cfg)
+        system.load_backup()
 
 # only runs this when you open the application
 # commands can also be accessed from the command line
-def interactive_loop(ud, ex, cfg):
+def interactive_loop():
+    ud = update.require_update()
+
     print("Entering interactive mode. Type 'help' for a list of commands.")
     try:
       while True:
@@ -122,21 +99,21 @@ def interactive_loop(ud, ex, cfg):
                 case "help":
                     print("Blah blah list of commands")
                 case "update":
-                    print("Updating cache...")
+                    ud.update_all()
                 case _ if inp.startswith("extract "):
                     project_list = inp.split(" ", 1)[1].split(" ")                  
-                    ex.extract_projects(ud, cfg, project_list)
+                    extract.extract_projects(project_list)
                 case _ if inp.startswith("append "):
                     project = inp.split(" ", 1)[1].split(" ") 
                     print(f"Appending {project}.")
                 case "backup":
                     print("Creating cache backup...")
-                    system.save_backup(cfg)
+                    system.save_backup()
                 case "restore":
                     print("Restoring cache backup...")
-                    system.load_backup(cfg)
+                    system.load_backup()
                 case "restorefromarchive":
-                    system.restore_vanilla_cache(cfg)
+                    system.restore_vanilla_cache()
                 case "quit":
                     print("Exiting...")
                     return
@@ -146,13 +123,11 @@ def interactive_loop(ud, ex, cfg):
         return
 
 def main(argv=None):
-    boot = bootstrap()
-    if not boot:
-        # bootstrap failed, exit cleanly
-        return 1
-    
-    ud, ex, cfg = boot
-   
+    config.set_global_config(config.Configurator())
+    update.set_global_update(update.Updater())
+
+    print(config._GLOBAL_CONFIG)
+       
     # detect whether the user invoked the program with command-line flags
     argv = argv if argv is not None else sys.argv[1:]
     parser = build_parser()
@@ -160,12 +135,12 @@ def main(argv=None):
 
     # check for command-line args
     if has_cli_actions(args):
-        code = process_cli(args, ud, ex, cfg)
+        code = process_cli(args)
         if not args.gui:
             return 0
     else:
         # no command-line args, run interactive loop
-        interactive_loop(ud, ex, cfg)
+        interactive_loop()
         return 0
 
 if __name__ == "__main__":

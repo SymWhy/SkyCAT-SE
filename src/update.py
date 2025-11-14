@@ -2,7 +2,7 @@ from pathlib import Path
 import pandas as pd
 import os.path
 
-import config
+import config, util
 
 class Updater:
 
@@ -15,6 +15,10 @@ class Updater:
     animsetdata_csv = None
 
     def __init__(self):
+        # make sure the cache is valid every time, quit on failure.
+        if not util.sanitize_cache():
+            return
+    
         if not os.path.exists("src\\resources\\vanilla_projects.txt"):
             print("Error: Missing vanilla projects list. You may need to reinstall the program.")
             return
@@ -29,7 +33,11 @@ class Updater:
             self.vanilla_projects.append(line.strip().lower())
         vanilla_dirlist.close()
 
-    def update_animdata(self, cfg, animdata):
+        self.update_all()
+
+    def update_animdata(self, animdata):
+        cfg = config.require_config()
+
         readable = open(cfg.skyrim + animdata, "r")
 
         data = pd.DataFrame(columns=["project_name", # name of project
@@ -191,7 +199,9 @@ class Updater:
 
         self.new_projects = [proj for proj in self.cached_projects if proj not in self.vanilla_projects]
 
-    def update_animsetdata(self, cfg, animsetdata):
+    def update_animsetdata(self, animsetdata):
+
+        cfg = config.require_config()
         
         # check if we already have a csv, if not run update_animdata()
         try:
@@ -328,10 +338,31 @@ class Updater:
 
 
 
-    def update_all(self, cfg):
+    def update_all(self):
+        cfg = config.require_config()
+
         print("Updating animdata index...")
-        self.update_animdata(cfg, config.animdata)
+        self.update_animdata(config.animdata)
         print("Updating animsetdata index...")
-        self.update_animsetdata(cfg, config.animsetdata)
+        self.update_animsetdata(config.animsetdata)
         print("Update complete.")
         return 0
+    
+# GLOBAL UPDATER
+
+_GLOBAL_UPDATE = None
+
+def set_global_update(ud):
+    global _GLOBAL_UPDATE
+    _GLOBAL_UPDATE = ud
+    return _GLOBAL_UPDATE
+
+def get_global_update():
+    return _GLOBAL_UPDATE
+
+# safe getter that raises if not set
+def require_update():
+    ud = get_global_update()
+    if ud is None:
+        raise RuntimeError("Global update not set. Call bootstrap() before using update.")
+    return ud
