@@ -1,5 +1,4 @@
 import os
-import configparser
 from pathlib import Path
 import pandas as pd
 import tkinter.filedialog as filedialog
@@ -12,8 +11,6 @@ def sanitize_cache():
 
     cfg = config.require_config()
 
-    cfgparser = configparser.ConfigParser()
-
     # make sure all our resource files are available
     if (not os.path.exists("src\\resources\\vanilla_projects.txt")):
         print("Error: Source files corrupt! You may need to reinstall SkyCAT SE.")
@@ -23,7 +20,7 @@ def sanitize_cache():
     # prompt the user to navigate to the Skyrim SE directory
     if not os.path.exists(cfg.skyrim) or not os.path.exists(cfg.skyrim + "\\meshes\\animationdatasinglefile.txt") or not os.path.exists(cfg.skyrim + "\\meshes\\animationdatasinglefile.txt"):
         new_path = filedialog.askdirectory(title="Select Skyrim SE Data folder.", mustexist=True)
-        cfg.write_to_config(cfgparser, 'PATHS', 'sPathSSE', new_path)
+        cfg.write_to_config('PATHS', 'sPathSSE', new_path)
 
     # make sure the animation cache is unpacked from the bsa.
     if not os.path.exists(cfg.skyrim + "\\meshes\\animationdatasinglefile.txt") or not os.path.exists(cfg.skyrim + "\\meshes\\animationdatasinglefile.txt"):
@@ -149,6 +146,7 @@ def can_be_merged(project_name):
     if unpacked[0]:
         # if animdata with boundanims and not animsetdata, or vice versa, return false
         if unpacked[1] and not unpacked[2] or unpacked[2] and not unpacked[1]:
+            print(f"Warning: {project_name} is missing files.")
             return False
         
         # if animdata with no boundanims or animsetdata, return true
@@ -159,6 +157,7 @@ def can_be_merged(project_name):
         if unpacked[0] and unpacked[1] and unpacked[2]:
             return True
     # if no animdata, return false
+    print(f"Warning: {project_name} does not exist.")
     return False
 
 def unpack_vanilla_cache():
@@ -168,3 +167,14 @@ def unpack_vanilla_cache():
     anims_archive.extract_file("meshes\\animationdatasinglefile.txt", Path(cfg.skyrim))
     anims_archive.extract_file("meshes\\animationsetdatasinglefile.txt", Path(cfg.skyrim))
     return 0
+
+def clean_temp():
+    cfg = config.require_config()
+    temp_path = cfg.cache + "\\tmp"
+    if os.path.exists(temp_path):
+        for root, dirs, files in os.walk(temp_path, topdown=False):
+            for name in files:
+                os.remove(os.path.join(root, name))
+            for name in dirs:
+                os.rmdir(os.path.join(root, name))
+        os.rmdir(temp_path)

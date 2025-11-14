@@ -1,16 +1,8 @@
+import shutil
 import pandas as pd
 import os.path
 
 import config, util, update
-
-def __init__():
-    cfg = config.require_config()
-    ud = update.require_update()
-
-    # load the csv files
-    ud.animdata_csv = pd.read_csv(cfg.cache + "\\animdata_index.csv")
-    ud.animsetdata_csv = pd.read_csv(cfg.cache + "\\animsetdata_index.csv")
-
 
 def extract_projects(listprojects):
     
@@ -18,12 +10,11 @@ def extract_projects(listprojects):
     ud = update.require_update()
 
     # check if we've generated our cache files
-    if not os.path.exists(cfg.cache + "\\animdata_index.csv") or not os.path.exists(cfg.cache + "\\animsetdata_index.csv"):
+    if not os.path.exists(cfg.cache + config.animdata_csv_path) or not os.path.exists(cfg.cache + config.animsetdata_csv_path):
         print("Updating cache files...")
         if ud.update_all() != 0:
             print("Error: Could not update program.")
             return
-        return 0
     
     for project in listprojects:
         project = project.lower()
@@ -63,68 +54,88 @@ def extract_projects(listprojects):
 
         print("Project index for {} is {}. Animset index is {}.".format(project, project_index, animset_index))
 
+
         ### ANIMATIONDATA ###
 
-        # check that our directory exists
-        animdata_dir = cfg.skyrim + "\\meshes\\animationdata"
+        # check that our animdata directory exists
+        animdata_dir = cfg.skyrim + config.animdata_dir
 
         if not os.path.exists(animdata_dir):
             os.makedirs(animdata_dir)
+
+        # create temporary cache folders
+        try:
+            animdata_tmp_folder = cfg.cache + "\\tmp" + config.animdata_dir
+            animsetdata_tmp_folder = cfg.cache + "\\tmp" + config.animsetdata_dir
+            os.makedirs(animdata_tmp_folder, exist_ok=True)
+            os.makedirs(animsetdata_tmp_folder, exist_ok=True)
+
+        except Exception as e:
+            print(f"Error creating temporary folders: {e}")
+            util.clean_temp()
+            return 1
 
         # open the animdata file
         readable = open(cfg.skyrim + config.animdata, "r")
 
         # write the animdata cache file
         try:
+            animdata_cache = open((animdata_tmp_folder + "\\" + project + ".txt"), 'w')
 
-            try:
-                animdata_cache = open((animdata_dir + "\\" + project + ".txt"), 'w')
-
-                # read lines up to the project start
-                for _ in range(int(ud.animdata_csv.at[project_index, "project_start"])):
-                    readable.readline()
-
-                # skip line count
+            # read lines up to the project start
+            for _ in range(int(ud.animdata_csv.at[project_index, "project_start"])):
                 readable.readline()
 
-                lines_anims = int(ud.animdata_csv.at[project_index, "lines_anims"])
+            # skip line count
+            readable.readline()
 
-                n = 1
-                
-                if isCreature:
-                    n = 2
+            lines_anims = int(ud.animdata_csv.at[project_index, "lines_anims"])
 
-                for i in range(lines_anims - n):
-                    animdata_cache.write(readable.readline())
-                animdata_cache.write(readable.readline().strip())
-
-            finally: animdata_cache.close()
-
-            # write the boundanims cache file
+            n = 1
+            
             if isCreature:
+                n = 2
 
-                boundanims_dir = cfg.skyrim + "\\meshes\\animationdata\\boundanims"
-                if not os.path.exists(boundanims_dir):
-                    os.makedirs(boundanims_dir)
+            for i in range(lines_anims - n):
+                animdata_cache.write(readable.readline())
+            animdata_cache.write(readable.readline().strip())
 
-                try:
-                    boundanims_cache = open(os.path.join(boundanims_dir, "anims_" + project + ".txt"), 'w')
+            animdata_cache.close()
+        except Exception as e:
+            print(f"Error extracting animdata for {project}: {e}")
+            util.clean_temp()
+            return 1
 
-                    # skip whitespace and linecount
-                    readable.readline()
-                    readable.readline()
+        # write the boundanims cache file
+        if isCreature:
 
-                    lines_boundanims = int(ud.animdata_csv.at[project_index, "lines_boundanims"])
+            boundanims_dir = animdata_tmp_folder + "\\boundanims"
+            if not os.path.exists(boundanims_dir):
+                os.makedirs(boundanims_dir)
 
-                    for i in range(lines_boundanims - 2):
+            try:
+                boundanims_cache = open(os.path.join(boundanims_dir, "anims_" + project + ".txt"), 'w')
 
-                        boundanims_cache.write(readable.readline())
+                # skip whitespace and linecount
+                readable.readline()
+                readable.readline()
 
-                    boundanims_cache.write(readable.readline().strip())
+                lines_boundanims = int(ud.animdata_csv.at[project_index, "lines_boundanims"])
 
-                finally: boundanims_cache.close()
+                for i in range(lines_boundanims - 2):
 
-        finally: readable.close()
+                    boundanims_cache.write(readable.readline())
+
+                boundanims_cache.write(readable.readline().strip())
+
+                boundanims_cache.close()
+
+            except Exception as e:
+                print(f"Error extracting boundanims for {project}: {e}")
+                util.clean_temp()
+                return 1
+
+        readable.close()
 
         ### ANIMATIONSETDATA ###
 
@@ -150,7 +161,7 @@ def extract_projects(listprojects):
                     print("Expected {}, got {}.".format(expected_animset_count, animset_count))
                     return
                 
-                project_dir = cfg.skyrim + config.animsetdata_dir + "\\" + project + "data"
+                project_dir = animsetdata_tmp_folder + "\\" + project + "data"
 
                 # check to make sure the path to project's "projectdata" folder exists
                 if not os.path.exists(project_dir):
@@ -162,12 +173,18 @@ def extract_projects(listprojects):
                 try:
                     animset_list = []
 
-                    # write the file names to the animstlist txt
+                    # write the file names to the animsetlist txt
                     for i in range(animset_count):
                         animset_list.append(readable.readline().strip().lower())
 
                     for item in animset_list:
                         animsetlist.write(item + "\n")
+                
+                except Exception as e:
+                    print(f"Error while extracting animset data for {project}: {e}")
+                    util.clean_temp()
+                    return 1
+                
                 finally:
                     animsetlist.close()
 
@@ -230,10 +247,27 @@ def extract_projects(listprojects):
                                 writable.write(readable.readline().strip())
                             
                             else: writable.write(readable.readline())
+
+                    except Exception as e:
+                        print(f"Error while extracting animset data for {project}: {e}")
+                        util.clean_temp()
+                        return 1
+                    
                     finally:
                         writable.close()
-
+                    
+            except Exception as e:
+                print(f"Error while extracting animset data for {project}: {e}")
+                util.clean_temp()
+                return 1
+            
             finally: readable.close()
+
+        # move temp files to their final destination
+        shutil.copytree(cfg.cache + "\\tmp", cfg.skyrim, dirs_exist_ok=True)
+
+        # remove temp folders if they still exist
+        util.clean_temp()
 
         print(f"Successfully extracted {project}.")
     return 0

@@ -5,12 +5,13 @@ import configparser
 animdata = "\\meshes\\animationdatasinglefile.txt"
 animsetdata = "\\meshes\\animationsetdatasinglefile.txt"
 
-animdata_dir = "\\meshes\\animationdata\\"
-animsetdata_dir = "\\meshes\\animationsetdata\\"
+animdata_dir = "\\meshes\\animationdata"
+animsetdata_dir = "\\meshes\\animationsetdata"
 
-animdata_csv_path = "\\animdata_cache.csv"
-animsetdata_csv_path = "\\animsetdata_cache.csv"
+animdata_csv_path = "\\cache\\animdata_cache.csv"
+animsetdata_csv_path = "\\cache\\animsetdata_cache.csv"
 
+parser = configparser.ConfigParser()
 
 class Configurator:
     def __init__(self):
@@ -18,22 +19,24 @@ class Configurator:
         if not os.path.exists('skycat.ini'):
             self.setup_config()
         self.load_config()
+
         
         
     # configurables
     skyrim = 'C:\\Steam\\steamapps\\common\\Skyrim Special Edition\\Data'
-    cache = os.path.expanduser('~') + '\\AppData\\Local\\SkyCAT-SE\\cache\\'
+    cache = os.path.expanduser('~') + '\\AppData\\Local\\SkyCAT-SE\\cache'
     backups = os.getcwd() + '\\backups'
 
-    def setup_config(self, cfgparser=configparser.ConfigParser()):        
+    def setup_config(self, cfgparser=parser):
         cfgparser['PATHS'] = {'sPathSSE': 'C:\\Steam\\steamapps\\common\\Skyrim Special Edition\\Data',
-                          'sPathCache': os.path.expanduser('~') + '\\AppData\\Local\\SkyCAT-SE\\cache\\',
+                          'sPathCache': os.path.expanduser('~') + '\\AppData\\Local\\SkyCAT-SE',
                           'sPathBackups': os.getcwd() + '\\backups'}
         with open('skycat.ini', 'w') as configfile:
             cfgparser.write(configfile)
 
         
-    def load_config(self, cfgparser=configparser.ConfigParser()):
+    def load_config(self, cfgparser=parser):
+
         if not os.path.exists('skycat.ini'):
             self.setup_config(cfgparser)
         cfgparser.read('skycat.ini')
@@ -41,8 +44,13 @@ class Configurator:
         self.cache = cfgparser['PATHS']['sPathCache']
         self.backups = cfgparser['PATHS']['sPathBackups']
 
-    def write_to_config(self, cfgparser, section, key, input):
-        cfgparser[section][key] = input
+    def write_to_config(self, section, key, value, cfgparser=parser):
+        if not os.path.exists('skycat.ini'):
+            self.setup_config(cfgparser)
+            self.load_config(cfgparser)
+            
+        cfgparser[section][key] = value
+
         with open('skycat.ini', 'w') as configfile:
             cfgparser.write(configfile)
         self.load_config(cfgparser)
