@@ -11,8 +11,8 @@ def save_backup(prefix="backup_"):
     if not os.path.exists(cfg.backups):
         os.makedirs(cfg.backups)
 
-    animdata_src = cfg.skyrim + config.animdata
-    animsetdata_src = cfg.skyrim + config.animsetdata
+    animdata_src = cfg.skyrim / config.animdata
+    animsetdata_src = cfg.skyrim / config.animsetdata
     
     if not os.path.exists(animdata_src) or not os.path.exists(animsetdata_src):
         print("Error: cannot backup cache, files missing.")
@@ -22,8 +22,8 @@ def save_backup(prefix="backup_"):
     if not os.path.exists(cfg.backups):
         os.makedirs(cfg.backups)
 
-    animdata_dst = cfg.backups + "\\animationdatasinglefile.txt"
-    animsetdata_dst = cfg.backups + "\\animationsetdatasinglefile.txt"
+    animdata_dst = cfg.backups / "animationdatasinglefile.txt"
+    animsetdata_dst = cfg.backups / "animationsetdatasinglefile.txt"
 
     # user consent to overwrite
     if os.path.exists(animdata_dst) or os.path.exists(animsetdata_dst):
@@ -49,20 +49,19 @@ def load_backup():
         return 0
     
     # make sure we have a meshes folder to copy to
-    if not os.path.exists(cfg.skyrim + "\\meshes"):
-        os.makedirs(cfg.skyrim + "\\meshes")
+    if not os.path.exists(cfg.skyrim / "meshes"):
+        os.makedirs(cfg.skyrim / "meshes")
 
-    animdata_src = cfg.backups + "\\animationdatasinglefile.txt"
-    animsetdata_src = cfg.backups + "\\animationsetdatasinglefile.txt"
-
+    animdata_src = cfg.backups / "animationdatasinglefile.txt"
+    animsetdata_src = cfg.backups / "animationsetdatasinglefile.txt"
     # make sure the backup files exist
     if not os.path.exists(animdata_src) or not os.path.exists(animsetdata_src):
         print("Error: Backup files missing.")
         return
 
-    animdata_dst = cfg.skyrim + "\\meshes\\animationdatasinglefile.txt"
-    animsetdata_dst = cfg.skyrim + "\\meshes\\animationsetdatasinglefile.txt"
-    
+    animdata_dst = cfg.skyrim / "meshes" / "animationdatasinglefile.txt"
+    animsetdata_dst = cfg.skyrim / "meshes" / "animationsetdatasinglefile.txt"
+
     # user consent to overwrite
     if os.path.exists(animdata_dst) or os.path.exists(animsetdata_dst):
         print("This will overwrite your current animation cache. Is this okay? Y/N")
@@ -87,17 +86,17 @@ def copy_backups(animdata_src, animsetdata_src, animdata_dst, animsetdata_dst):
 
         # create temporary backups of existing files
         if os.path.exists(animdata_dst):
-            bak_path = animdata_dst + ".bak"
-            old_animdata = Path(shutil.copy(animdata_dst, bak_path))
+            bak_path = animdata_dst / ".bak"
+            old_animdata = Path(shutil.copy2(animdata_dst, bak_path))
 
         if os.path.exists(animsetdata_dst):
-            bak_path = animsetdata_dst + ".bak"
-            old_animsetdata = Path(shutil.copy(animsetdata_dst, bak_path))
+            bak_path = animsetdata_dst / ".bak"
+            old_animsetdata = Path(shutil.copy2(animsetdata_dst, bak_path))
         
         try:
             # copy the cache files to the backup folder
-            shutil.copy(animdata_src, animdata_dst)
-            shutil.copy(animsetdata_src, animsetdata_dst)
+            shutil.copy2(animdata_src, animdata_dst)
+            shutil.copy2(animsetdata_src, animsetdata_dst)
         except Exception:
             print("Failed to create backup. Restoring previous backup.")
             # restore old backups
@@ -116,6 +115,10 @@ def copy_backups(animdata_src, animsetdata_src, animdata_dst, animsetdata_dst):
 
     except Exception:
         print("Failed to create temporary backup. Aborting.")
+
+        old_animdata = animdata_dst / ".bak"
+        old_animsetdata = animsetdata_dst / ".bak"
+
         # clean up any partial temp files
         if old_animdata is not None and old_animdata.exists():
             os.remove(str(old_animdata))

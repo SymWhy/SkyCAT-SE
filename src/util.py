@@ -12,21 +12,21 @@ def sanitize_cache():
     cfg = config.require_config()
 
     # make sure all our resource files are available
-    if (not os.path.exists("src\\resources\\vanilla_projects.txt")):
+    if (not os.path.exists(Path("src") / "resources" / "vanilla_projects.txt")):
         print("Error: Source files corrupt! You may need to reinstall SkyCAT SE.")
         os.system('pause')
         return
 
     # prompt the user to navigate to the Skyrim SE directory
-    if not os.path.exists(cfg.skyrim) or not os.path.exists(cfg.skyrim + "\\meshes\\animationdatasinglefile.txt") or not os.path.exists(cfg.skyrim + "\\meshes\\animationdatasinglefile.txt"):
+    if not os.path.exists(cfg.skyrim) or not os.path.exists(cfg.skyrim / "meshes" / "animationdatasinglefile.txt") or not os.path.exists(cfg.skyrim / "meshes" / "animationdatasinglefile.txt"):
         new_path = filedialog.askdirectory(title="Select Skyrim SE Data folder.", mustexist=True)
         cfg.write_to_config('PATHS', 'sPathSSE', new_path)
 
     # make sure the animation cache is unpacked from the bsa.
-    if not os.path.exists(cfg.skyrim + "\\meshes\\animationdatasinglefile.txt") or not os.path.exists(cfg.skyrim + "\\meshes\\animationdatasinglefile.txt"):
+    if not os.path.exists(cfg.skyrim / "meshes" / "animationdatasinglefile.txt") or not os.path.exists(cfg.skyrim / "meshes" / "animationdatasinglefile.txt"):
         
         # if we are missing the animations bsa entirely, abort.
-        if not os.path.exists(cfg.skyrim + "\\Skyrim - Animations.bsa"):
+        if not os.path.exists(cfg.skyrim / "Skyrim - Animations.bsa"):
             print("Error: could not find Skyrim - Animations.bsa. Please verify integrity of game files.")
             os.system('pause')
             return
@@ -39,7 +39,7 @@ def sanitize_cache():
             match response:
                 case 'y':
                     # unpack the necessary files
-                    unpack_vanilla_cache(cfg)
+                    unpack_vanilla_cache()
                     to_next = True
                     
                 case 'n':
@@ -50,54 +50,6 @@ def sanitize_cache():
         os.makedirs(cfg.cache)
 
     return True
-
-# validate entire cache
-def validate_cache():
-    cfg = config.require_config()
-    # check animdata cache:
-    # get expected project count from readline()
-    # count actual projects in cache
-    # if there is an integer too early or late, return false (project count mismatch)
-    # for each project in animdata cache
-        
-        # get expected line count from readline()
-        # count hkx files, check if it matches expected count
-        # record if creature or not
-        
-    pass
-        
-    # check animsetdata cache:
-    pass
-
-# validate loose project files
-def validate_animdata(creature_folder, project_name):
-    cfg = config.require_config()
-    # expected structure:
-    # 1								  --- Unsure always seems to be 1, skip
-    # 3							      --- How many hkx files associated with this project (directly below this line)
-    # Behaviors\ChickenBehavior.hkx   --- Behaviour files
-    # Characters\ChickenCharater.hkx  --- Character file
-    # Character Assets\skeleton.HKX   --- Skeleton
-    # 1					              --- 0 = not creature, 1 = creature
-
-    # skip first line, always 1
-    # record expected hkx count from second line
-    # count actual hkx files listed
-    # make sure behavior files are available in creaturefolder ()
-    # make sure there's only one characters line and it matches a hkx in creaturefolder
-    # make sure there's only one skeleton line and it matches a hkx in creaturefolder
-    # record if creature or not from next line
-
-    pass
-
-def validate_boundanims(creature_folder, expected_anims):
-    # get expected animation count from creaturefolder/animations
-    # count each section and match to expected animation count
-    # (each section is separated by an empty newline)
-    pass
-
-def validate_animsetdata():
-    pass
 
 def is_in_cache(project_name):
     ud = update.require_update()
@@ -114,23 +66,24 @@ def is_unpacked(project_name):
     has_animsetdata = False
 
     # check for animdata file
-    if os.path.exists(cfg.skyrim + f"\\meshes\\animationdata\\{project_name}.txt"):
+    if os.path.exists(cfg.skyrim / "meshes" / "animationdata" / f"{project_name}.txt"):
         has_animdata = True
        
     # check for boundanims file if expected
-    if os.path.exists(cfg.skyrim + f"\\meshes\\animationdata\\boundanims\\anims_{project_name}.txt"):
+    if os.path.exists(cfg.skyrim / "meshes" / "animationdata" / "boundanims" / f"anims_{project_name}.txt"):
         has_boundanims = True
 
     # check for animsetdata file
-    if os.path.exists(cfg.skyrim + f"\\meshes\\animationsetdata\\{project_name}data\\{project_name}.txt"):
+    if os.path.exists(cfg.skyrim / "meshes" / "animationsetdata" / f"{project_name}data" / f"{project_name}.txt"):
        has_animsetdata = True 
     return [has_animdata, has_boundanims, has_animsetdata]
 
 def is_creature(project_name):
+    cfg = config.require_config()
     ud = update.require_update()
 
-    animdata_csv = pd.read_csv(ud.animdata_csv)
-    creaturelist = animdata_csv[animdata_csv['is_creature'] == 1]['project_name'].tolist()
+    animdata_csv = pd.read_csv(cfg.cache / config.animdata_csv_path)
+    creaturelist = animdata_csv[animdata_csv['project_type'] == "creature"]['project_name'].tolist()
     if project_name in creaturelist:
         return True
     return False
@@ -163,14 +116,14 @@ def can_be_merged(project_name):
 def unpack_vanilla_cache():
     cfg = config.require_config()
 
-    anims_archive = sse_bsa.BSAArchive(Path(cfg.skyrim + "\\skyrim - animations.bsa"))
-    anims_archive.extract_file("meshes\\animationdatasinglefile.txt", Path(cfg.skyrim))
-    anims_archive.extract_file("meshes\\animationsetdatasinglefile.txt", Path(cfg.skyrim))
+    anims_archive = sse_bsa.BSAArchive(Path(cfg.skyrim / "Skyrim - Animations.bsa"))
+    anims_archive.extract_file(Path("meshes") / "animationdatasinglefile.txt", Path(cfg.skyrim))
+    anims_archive.extract_file(Path("meshes") / "animationsetdatasinglefile.txt", Path(cfg.skyrim))
     return 0
 
 def clean_temp():
     cfg = config.require_config()
-    temp_path = cfg.cache + "\\tmp"
+    temp_path = cfg.cache / "temp"
     if os.path.exists(temp_path):
         for root, dirs, files in os.walk(temp_path, topdown=False):
             for name in files:
@@ -178,3 +131,50 @@ def clean_temp():
             for name in dirs:
                 os.rmdir(os.path.join(root, name))
         os.rmdir(temp_path)
+    else:
+        return None
+    return 0
+
+def get_path_case_insensitive(source: Path):
+    parent = source.parent
+    target_name = source.name.casefold()
+    try:
+        for child in parent.iterdir():
+            if child.name.casefold() == target_name:
+                return child
+    except FileNotFoundError:
+        return None
+
+def count_lines_and_strip(file):
+
+    with open(file, 'r', encoding="utf-8") as rfile:
+        line_count = 0
+
+        # count total lines in file
+        for count, line in enumerate(rfile):
+            line_count = count
+
+        rfile.seek(0)
+
+        # count lines in file up to our recorded line count
+        for _ in range(line_count):
+            
+            line = rfile.readline()
+
+            # check if we're at the end of the file and the last line is blank
+            if rfile.tell() == os.fstat(rfile.fileno()).st_size and line.strip() == "\n":
+                line_count -= 1
+
+                # return to the top
+                rfile.seek(0)
+
+    return line_count
+
+
+def helper_function():
+    unpack_vanilla_cache()
+    ud = update.require_update()
+    ud.update_all()
+    import append
+    append.append_projects(['shalkproject'])
+    return 0

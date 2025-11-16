@@ -1,15 +1,15 @@
 import os
+from pathlib import Path
 import configparser
 
 # constants
-animdata = "\\meshes\\animationdatasinglefile.txt"
-animsetdata = "\\meshes\\animationsetdatasinglefile.txt"
+animdata = Path("meshes") / "animationdatasinglefile.txt"
+animsetdata = Path("meshes") / "animationsetdatasinglefile.txt"
 
-animdata_dir = "\\meshes\\animationdata"
-animsetdata_dir = "\\meshes\\animationsetdata"
-
-animdata_csv_path = "\\cache\\animdata_cache.csv"
-animsetdata_csv_path = "\\cache\\animsetdata_cache.csv"
+animdata_dir = Path("meshes") / "animationdata"
+animsetdata_dir = Path("meshes") / "animationsetdata"
+animdata_csv_path = Path("cache") / "animdata_cache.csv"
+animsetdata_csv_path = Path("cache") / "animsetdata_cache.csv"
 
 parser = configparser.ConfigParser()
 
@@ -23,15 +23,15 @@ class Configurator:
         
         
     # configurables
-    skyrim = 'C:\\Steam\\steamapps\\common\\Skyrim Special Edition\\Data'
-    cache = os.path.expanduser('~') + '\\AppData\\Local\\SkyCAT-SE\\cache'
-    backups = os.getcwd() + '\\backups'
+    skyrim = Path('C:') / "Steam" / "steamapps" / "common" / "Skyrim Special Edition" / "Data"
+    cache = Path.home() / 'AppData' / 'Local' / 'SkyCAT-SE' / 'cache'
+    backups = Path.cwd() / 'backups'
 
     def setup_config(self, cfgparser=parser):
-        cfgparser['PATHS'] = {'sPathSSE': 'C:\\Steam\\steamapps\\common\\Skyrim Special Edition\\Data',
-                          'sPathCache': os.path.expanduser('~') + '\\AppData\\Local\\SkyCAT-SE',
-                          'sPathBackups': os.getcwd() + '\\backups'}
-        with open('skycat.ini', 'w') as configfile:
+        cfgparser['PATHS'] = {'sPathSSE': str(Path('C:') / "Steam" / "steamapps" / "common" / "Skyrim Special Edition" / "Data"),
+                          'sPathCache': str(Path.home() / 'AppData' / 'Local' / 'SkyCAT-SE'),
+                          'sPathBackups': str(Path.cwd() / 'backups')}
+        with open('skycat.ini', 'w', encoding="utf-8") as configfile:
             cfgparser.write(configfile)
 
         
@@ -40,9 +40,9 @@ class Configurator:
         if not os.path.exists('skycat.ini'):
             self.setup_config(cfgparser)
         cfgparser.read('skycat.ini')
-        self.skyrim = cfgparser['PATHS']['sPathSSE']
-        self.cache = cfgparser['PATHS']['sPathCache']
-        self.backups = cfgparser['PATHS']['sPathBackups']
+        self.skyrim = Path(cfgparser['PATHS']['sPathSSE'])
+        self.cache = Path(cfgparser['PATHS']['sPathCache'])
+        self.backups = Path(cfgparser['PATHS']['sPathBackups'])
 
     def write_to_config(self, section, key, value, cfgparser=parser):
         if not os.path.exists('skycat.ini'):
@@ -51,7 +51,7 @@ class Configurator:
             
         cfgparser[section][key] = value
 
-        with open('skycat.ini', 'w') as configfile:
+        with open('skycat.ini', 'w', encoding="utf-8") as configfile:
             cfgparser.write(configfile)
         self.load_config(cfgparser)
 
@@ -71,5 +71,7 @@ def get_global_config():
 def require_config():
     cfg = get_global_config()
     if cfg is None:
-        raise RuntimeError("Global config not set. Call bootstrap() before using config.")
+        print("Global config not set. Setting now...")
+        cfg = set_global_config(Configurator())
+        
     return cfg

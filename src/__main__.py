@@ -4,7 +4,7 @@ import argparse
 
 import config, system, update
 
-import extract, append
+import extract, append, validate
 
 
 def build_parser():
@@ -32,14 +32,24 @@ def build_parser():
                       nargs='+',
                       help='Append one or more projects to the animation cache.\n'
                       'For example: "-append catproject snakeproject"')
+  
   parser.add_argument("-backup",
                       help="Create a backup of the current animation cache.",
                       action='store_true')
+  
   parser.add_argument("-restore",
                       help="Restore the animation cache from the latest backup.",
                       action='store_true')
+  
+  parser.add_argument("-restorefromarchive",
+                      help="Restore the vanilla animation cache from the program archive.",
+                      action='store_true')
+  
   parser.add_argument("-gui",
                       help="Launch the full program.",
+                      action='store_true')
+  # debug helpers
+  parser.add_argument("-debug",
                       action='store_true')
   return parser
 
@@ -51,6 +61,9 @@ def has_cli_actions(parsed_args) -> bool:
         parsed_args.extractall,
         parsed_args.append,
         parsed_args.gui,
+        parsed_args.backup,
+        parsed_args.restore,
+        parsed_args.restorefromarchive
     ])
 
 
@@ -62,6 +75,15 @@ def process_cli(args):
     if args.gui:
         # its not really a gui yet but i'll get there
         interactive_loop()
+
+    if args.backup:
+        system.save_backup()
+
+    if args.restorefromarchive:
+        system.restore_vanilla_cache()
+
+    if args.restore:
+        system.load_backup()
 
     if args.update:
         ud.update_all()
@@ -77,14 +99,14 @@ def process_cli(args):
             extract.extract_all_projects()
 
     if args.append:
-        # append_projects(args.append)
+        append.append_projects(args.append)
         pass
 
-    if args.backup:
-        system.save_backup()
-
-    if args.restore:
-        system.load_backup()
+    if args.debug:
+        import util
+        util.helper_function()
+    
+    return 0
 
 # only runs this when you open the application
 # commands can also be accessed from the command line
@@ -98,25 +120,37 @@ def interactive_loop():
           match inp:
                 case "help":
                     print("Blah blah list of commands")
+
                 case "update":
                     ud.update_all()
+
                 case _ if inp.startswith("extract "):
                     project_list = inp.split(" ", 1)[1].split(" ")                  
                     extract.extract_projects(project_list)
+
                 case _ if inp.startswith("append "):
                     project = inp.split(" ", 1)[1].split(" ") 
-                    print(f"Appending {project}.")
+                    append.append_projects(project)
+
                 case "backup":
                     print("Creating cache backup...")
                     system.save_backup()
+
                 case "restore":
                     print("Restoring cache backup...")
                     system.load_backup()
+
                 case "restorefromarchive":
                     system.restore_vanilla_cache()
+
                 case "quit":
                     print("Exiting...")
                     return
+              
+                case "debug":
+                    import util
+                    util.helper_function()
+              
     except (KeyboardInterrupt, EOFError):
         print("Something went wrong, exiting...")
         os.system('pause')
@@ -126,12 +160,15 @@ def main(argv=None):
     config.set_global_config(config.Configurator())
     update.set_global_update(update.Updater())
 
-    print(config._GLOBAL_CONFIG)
+    ud = update.require_update()
        
     # detect whether the user invoked the program with command-line flags
     argv = argv if argv is not None else sys.argv[1:]
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    # force-run update
+    ud.update_all()
 
     # check for command-line args
     if has_cli_actions(args):
