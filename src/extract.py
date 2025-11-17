@@ -2,19 +2,20 @@ import shutil
 import pandas as pd
 import os.path
 from pathlib import Path
-import config, util, update
+import config, util, update, system
 
 def extract_projects(listprojects):
     
     cfg = config.require_config()
     ud = update.require_update()
 
+    # ensure cache is up to date
+    ud.update_all()
+
     # check if we've generated our cache files
     if not os.path.exists(cfg.cache / config.animdata_csv_path) or not os.path.exists(cfg.cache / config.animsetdata_csv_path):
-        print("Updating cache files...")
-        if ud.update_all() != 0:
-            print("Error: Could not update program.")
-            return
+        print("Error: Could not update program.")
+        return None
 
     animdata_csv = pd.read_csv(cfg.cache / config.animdata_csv_path)
     animsetdata_csv = pd.read_csv(cfg.cache / config.animsetdata_csv_path)
@@ -68,14 +69,14 @@ def extract_projects(listprojects):
 
         # create temporary cache folders
         try:
-            animdata_tmp_folder = cfg.cache / "tmp" / config.animdata_dir
-            animsetdata_tmp_folder = cfg.cache / "tmp" / config.animsetdata_dir
-            os.makedirs(animdata_tmp_folder, exist_ok=True)
-            os.makedirs(animsetdata_tmp_folder, exist_ok=True)
+            animdata_temp_folder = cfg.cache / "temp" / config.animdata_dir
+            animsetdata_temp_folder = cfg.cache / "temp" / config.animsetdata_dir
+            os.makedirs(animdata_temp_folder, exist_ok=True)
+            os.makedirs(animsetdata_temp_folder, exist_ok=True)
 
         except Exception as e:
             print(f"Error creating temporary folders: {e}")
-            util.clean_temp()
+            system.clean_temp()
             return 1
 
         # open the animdata file
@@ -83,7 +84,7 @@ def extract_projects(listprojects):
 
             # write the animdata cache file
             try:
-                with open((animdata_tmp_folder / (project + ".txt")), 'w', encoding="utf-8") as animdata_cache:
+                with open((animdata_temp_folder / (project + ".txt")), 'w', encoding="utf-8") as animdata_cache:
                     # read lines up to the project start
                     for _ in range(int(animdata_csv.at[project_index, "project_start"])):
                         readable.readline()
@@ -104,13 +105,13 @@ def extract_projects(listprojects):
 
             except Exception as e:
                 print(f"Error extracting animdata for {project}: {e}")
-                util.clean_temp()
+                system.clean_temp()
                 return 1
 
             # write the boundanims cache file
             if isCreature:
 
-                boundanims_dir = animdata_tmp_folder / "boundanims"
+                boundanims_dir = animdata_temp_folder / "boundanims"
                 if not os.path.exists(boundanims_dir):
                     os.makedirs(boundanims_dir)
 
@@ -132,7 +133,7 @@ def extract_projects(listprojects):
 
                 except Exception as e:
                     print(f"Error extracting boundanims for {project}: {e}")
-                    util.clean_temp()
+                    system.clean_temp()
                     return 1
 
         ### ANIMATIONSETDATA ###
@@ -158,7 +159,7 @@ def extract_projects(listprojects):
                         print("Expected {}, got {}.".format(expected_animset_count, animset_count))
                         return
 
-                    project_dir = animsetdata_tmp_folder / project / "data"
+                    project_dir = animsetdata_temp_folder / str(project + "data")
 
                     # check to make sure the path to project's "projectdata" folder exists
                     if not os.path.exists(project_dir):
@@ -238,16 +239,17 @@ def extract_projects(listprojects):
                       
                 except Exception as e:
                     print(f"Error while extracting animset data for {project}: {e}")
-                    util.clean_temp()
+                    system.clean_temp()
                     return 1
-
-        # move temp files to their final destination
-        shutil.copytree(cfg.cache / "tmp", cfg.skyrim, dirs_exist_ok=True)
-
-        # remove temp folders if they still exist
-        util.clean_temp()
-
+                
         print(f"Successfully extracted {project}.")
+
+    # move temp files to their final destination
+    shutil.copytree(cfg.cache / "temp", cfg.skyrim, dirs_exist_ok=True)
+
+    # remove temp folders if they still exist
+    system.clean_temp()
+        
     return 0
 
 

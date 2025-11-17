@@ -55,6 +55,9 @@ class Updater:
             # initialize project index and name dictionary
             p_dict = {}
 
+            # debug flag
+            found_my_creature = False
+
             try:
                 # get project count
                 total_projects = int(readable.readline().strip())
@@ -79,8 +82,12 @@ class Updater:
                     
                     # Append new row to DataFrame
                     data = pd.concat([data, pd.DataFrame([new_row])], ignore_index=True)
-                                    
-                    project_name = p_dict[i].lower()
+
+                    # # debug check for test projects
+                    # project_name = p_dict[i].lower()
+                    # if project_name == "woodenbow".lower():
+                    #     found_my_creature = True
+                    #     os.system("pause")
 
                     # keep track of our line skips & reset at the beginning of the loop
                     lines_skipped = 0
@@ -144,8 +151,7 @@ class Updater:
                     for j in range (expected_lines - lines_skipped):
                         readable.readline()
                         line_count += 1
-
-                    # print(line_count) # expecting 759
+                    
 
                     if hasBoundAnims == 1:
                         # read number of lines expected for bound anims
@@ -190,15 +196,18 @@ class Updater:
                 # save csv path to class variable
                 self.animdata_csv = pd.read_csv(cfg.cache / config.animdata_csv_path)
             
+            # note: we don't want to raise here, we can fix the cache later
             except Exception as e:
-                # raise RuntimeError(f"Error while updating animdata: {e}")
-                pass
+                print(f"Error while updating animdata: {e}")
+                return None
 
         self.cached_projects = data['project_name'].tolist()
 
         self.creature_projects = data[data['project_type'] == "creature"]['project_name'].tolist()
-
+        
         self.new_projects = [proj for proj in self.cached_projects if proj not in self.vanilla_projects]
+
+        return True
 
     def update_animsetdata(self, animsetdata):
 
@@ -227,11 +236,13 @@ class Updater:
         # open the animsetdata file
         with open(cfg.skyrim / animsetdata, "r", encoding="utf-8") as readable:
 
+            print(f"Expecting {project_count} creature projects.")
+
             try:
                 # make sure we're expecting the right number of projects
                 if int(readable.readline().strip()) != project_count:
                     print("Error: Creature count mismatch!")
-                    return 1
+                    return None
                 else:
                     # print("Expecting {} creature projects.".format(project_count))
                     pass
@@ -339,14 +350,20 @@ class Updater:
             except Exception as e:
                 print(f"Error while updating animsetdata: {e}")
                 return
+            
+        return True
 
 
 
     def update_all(self):
         print("Updating animdata index...")
-        self.update_animdata(config.animdata)
+        if not self.update_animdata(config.animdata):
+            print("Update failed.")
+            return None
         print("Updating animsetdata index...")
-        self.update_animsetdata(config.animsetdata)
+        if not self.update_animsetdata(config.animsetdata):
+            print("Update failed.")
+            return None
         print("Update complete.")
         return 0
     

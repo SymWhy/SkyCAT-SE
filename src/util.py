@@ -121,20 +121,6 @@ def unpack_vanilla_cache():
     anims_archive.extract_file(Path("meshes") / "animationsetdatasinglefile.txt", Path(cfg.skyrim))
     return 0
 
-def clean_temp():
-    cfg = config.require_config()
-    temp_path = cfg.cache / "temp"
-    if os.path.exists(temp_path):
-        for root, dirs, files in os.walk(temp_path, topdown=False):
-            for name in files:
-                os.remove(os.path.join(root, name))
-            for name in dirs:
-                os.rmdir(os.path.join(root, name))
-        os.rmdir(temp_path)
-    else:
-        return None
-    return 0
-
 def get_path_case_insensitive(source: Path):
     parent = source.parent
     target_name = source.name.casefold()
@@ -153,6 +139,8 @@ def count_lines_and_strip(file):
         # count total lines in file
         for count, line in enumerate(rfile):
             line_count = count
+        
+        line_count += 1  # adjust for 0 indexing
 
         rfile.seek(0)
 
@@ -170,11 +158,57 @@ def count_lines_and_strip(file):
 
     return line_count
 
+def get_creature_projects(list_projects):
+    cfg = config.require_config()
+    project_dict = {}
+
+    for project in list_projects:
+
+        # presumably has animdata if it's in the list
+        has_boundanims = False
+        has_animsetdata = False
+    
+        # check for boundanims file if expected
+        if os.path.exists(cfg.skyrim / "meshes" / "animationdata" / "boundanims" / f"anims_{project}.txt"):
+            has_boundanims = True
+
+        # check for animsetdata file
+        if os.path.exists(cfg.skyrim / "meshes" / "animationsetdata" / f"{project}data" / f"{project}.txt"):
+            has_animsetdata = True 
+
+        if has_boundanims and not has_animsetdata or has_animsetdata and not has_boundanims:
+            # broken project, return error
+            print(f"Error: {project} is missing files!")
+            return None
+
+        project_dict[project] = has_boundanims and has_animsetdata
+        
+    return project_dict
+
+def count_mergeable_projects():
+    
+    cfg = config.require_config()
+    
+    animdata_dir = cfg.skyrim + config.animdata_dir
+
+    mergeable_projects = []
+    for file in os.listdir(animdata_dir):
+        # note, assuming all txt files in animationdata are projects, save for dirlist.txt
+        # in the future we will have a validation check here
+        if file.endswith(".txt") and not file == "dirlist.txt":
+            project_name = file[:-4]  # remove .txt extension
+            if can_be_merged(project_name):
+                mergeable_projects.append(project_name)
+
 
 def helper_function():
-    unpack_vanilla_cache()
+    # unpack_vanilla_cache()
+    import system
+    system.load_backup()
     ud = update.require_update()
     ud.update_all()
-    import append
-    append.append_projects(['shalkproject'])
+    syms_projects = ['shalkproject', 'fleshatronachproject', "IBHFTrapYokuRuinsSawblade01", "BSKDwemerSpiderProject"]
+    all_bs_projects = ['lizardproject', 'crocodileproject', 'poisondartfrogproject', 'pigproject', 'snailproject', 'gahigaliproject', 'newtproject', 'tigerproject', 'snappingturtleproject', 'MarshHarpyProject', 'GuxCheeProject', 'FleshSpiderProject', 'shalkproject', 'fleshatronachproject', "IBHFTrapYokuRuinsSawblade01", "BSKDwemerSpiderProject"]
+    import extract
+    extract.extract_projects(syms_projects)
     return 0

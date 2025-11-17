@@ -3,6 +3,7 @@ import os.path
 import shutil
 from pathlib import Path
 
+import update
 import config, util
 
 def save_backup(prefix="backup_"):
@@ -41,6 +42,8 @@ def save_backup(prefix="backup_"):
 
 def load_backup():
     cfg = config.require_config()
+    ud = update.require_update()
+
     backups_path = Path(cfg.backups)
 
     # make sure the backups directory exists and is a folder, and contains files
@@ -75,6 +78,7 @@ def load_backup():
     
     print("Restoring backup...")
     copy_backups(animdata_src, animsetdata_src, animdata_dst, animsetdata_dst)
+    ud.update_all()
 
 def copy_backups(animdata_src, animsetdata_src, animdata_dst, animsetdata_dst):
     try:
@@ -86,11 +90,11 @@ def copy_backups(animdata_src, animsetdata_src, animdata_dst, animsetdata_dst):
 
         # create temporary backups of existing files
         if os.path.exists(animdata_dst):
-            bak_path = animdata_dst / ".bak"
+            bak_path = Path(str(animdata_dst) + ".bak")
             old_animdata = Path(shutil.copy2(animdata_dst, bak_path))
 
         if os.path.exists(animsetdata_dst):
-            bak_path = animsetdata_dst / ".bak"
+            bak_path = Path(str(animsetdata_dst) + ".bak")
             old_animsetdata = Path(shutil.copy2(animsetdata_dst, bak_path))
         
         try:
@@ -113,11 +117,14 @@ def copy_backups(animdata_src, animsetdata_src, animdata_dst, animsetdata_dst):
             if old_animsetdata is not None and old_animsetdata.exists():
                 os.remove(str(old_animsetdata))
 
+        print("Backup successful.")
+        return 0
+
     except Exception:
         print("Failed to create temporary backup. Aborting.")
 
-        old_animdata = animdata_dst / ".bak"
-        old_animsetdata = animsetdata_dst / ".bak"
+        old_animdata = Path(str(animdata_dst) + ".bak")
+        old_animsetdata = Path(str(animsetdata_dst) + ".bak")
 
         # clean up any partial temp files
         if old_animdata is not None and old_animdata.exists():
@@ -127,14 +134,30 @@ def copy_backups(animdata_src, animsetdata_src, animdata_dst, animsetdata_dst):
         return
 
 def restore_vanilla_cache():
-    cfg = config.require_config()
+    ud = update.require_update()
+    
     while True:
         print("Note: This will overwrite your current animation cache with the vanilla cache. Continue? Y/N")
         match input().lower():
             case 'y':
-                util.unpack_vanilla_cache()
-                print("Vanilla cache restored.")
-                return
+                    util.unpack_vanilla_cache()
+                    ud.update_all()
+                    print("Vanilla cache restored.")
+                    return
             case 'n':
                 print("Cancelled.")
                 return
+            
+def clean_temp():
+    cfg = config.require_config()
+    temp_path = cfg.cache / "temp"
+    if os.path.exists(temp_path):
+        for root, dirs, files in os.walk(temp_path, topdown=False):
+            for name in files:
+                os.remove(os.path.join(root, name))
+            for name in dirs:
+                os.rmdir(os.path.join(root, name))
+        os.rmdir(temp_path)
+    else:
+        return None
+    return 0
