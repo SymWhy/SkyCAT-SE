@@ -1,16 +1,17 @@
 import os
 from pathlib import Path
-import shutil
+from shutil import copy2
 import pandas as pd
 
-import config, util, system, update
+import config, cache, system, util
 
-def append_projects(project_list):
-    cfg = config.require_config()
-    ud = update.require_update()
+def append_projects(project_list: list[str]):
+    cfg = config.get_global('config')
+    ud = config.get_global('update')
+    dryrun = config.get_global('dryrun')
 
     # ensure cache is up to date
-    ud.update_all()
+    ud.update_cache()
 
     had_a_creature = False
 
@@ -18,7 +19,7 @@ def append_projects(project_list):
 
     # check if the project is available to be merged
     for project_name in project_list:
-        if not util.can_be_merged(project_name):
+        if not cache.can_be_merged(project_name):
             print(f"Warning: {project_name} cannot be merged.")
             return
         
@@ -47,17 +48,17 @@ def append_projects(project_list):
                     break
 
 
-    if not os.path.exists(cfg.cache / config.animdata_csv_path):
-        print("Error: Can't find cache csv.")
+    if not os.path.exists(cfg.cache / config.animdata_json_path):
+        print("Error: Can't find cache json.")
         return 1
     
-    animdata_csv = pd.read_csv(cfg.cache / config.animdata_csv_path)
-    animsetdata_csv = pd.read_csv(cfg.cache / config.animsetdata_csv_path)
-    last_project_is_creature = util.is_creature(animdata_csv.iloc[-1]['project_name'])
-    
-    count_projects = len(animdata_csv) + len(project_list)
-    count_creatures = len(animsetdata_csv)
-    creatures_dict = util.get_creature_projects(project_list)
+    animdata_df = ud.animdata_df
+    animsetdata_df = ud.animsetdata_df
+    last_project_is_creature = cache.is_creature(animdata_df.iloc[-1]['project_name'])
+
+    count_projects = len(animdata_df) + len(project_list)
+    count_creatures = len(animsetdata_df)
+    creatures_dict = cache.get_creature_projects(project_list)
     count_creatures += sum(1 for p in project_list if creatures_dict.get(p))
 
 
@@ -84,7 +85,7 @@ def append_projects(project_list):
             t_animdata.write(f"{count_projects}")
 
             # copy existing project names
-            for _ in range(len(animdata_csv)):
+            for _ in range(len(animdata_df)):
                 t_animdata.write("\n" + o_animdata.readline().strip())
             
             # append each new project name NO NEWLINE
@@ -105,7 +106,7 @@ def append_projects(project_list):
                     o_animsetdata.readline()  # skip first line
 
                     # copy existing project names
-                    for _ in range(len(animsetdata_csv)):
+                    for _ in range(len(animsetdata_df)):
                         t_animsetdata.write("\n" + o_animsetdata.readline().strip())
                     
                     # append the new project names only if they are creatures
@@ -229,11 +230,16 @@ def append_projects(project_list):
 
     # validate tmp cache files
 
-    # copy tmp cache files to real cache files
-    shutil.copy2(temp_animdata, cfg.skyrim / config.animdata)
+    if not dryrun:
+        # copy tmp cache files to real cache files
+        copy2(temp_animdata, cfg.skyrim / config.animdata)
 
-    if had_a_creature:
-        shutil.copy2(temp_animsetdata, cfg.skyrim / config.animsetdata)
+        if had_a_creature:
+            copy2(temp_animsetdata, cfg.skyrim / config.animsetdata)
+
+    else:
+        print("Dry run complete. No changes were made.")
+        util.pause_wait_for_input()
 
     # clean up tmp files
     if system.clean_temp() != 0:
@@ -241,6 +247,6 @@ def append_projects(project_list):
         return 1
 
     # run updater
-    ud.update_all()
+    ud.update_cache()
 
     return 0

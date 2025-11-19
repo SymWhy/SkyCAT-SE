@@ -1,13 +1,12 @@
-import os
 import os.path
 import shutil
 from pathlib import Path
 
 import update
-import config, util
+import config, cache
 
 def save_backup(prefix="backup_"):
-    cfg = config.require_config()
+    cfg = config.get_global('config')
     
     if not os.path.exists(cfg.backups):
         os.makedirs(cfg.backups)
@@ -41,8 +40,8 @@ def save_backup(prefix="backup_"):
     copy_backups(animdata_src, animsetdata_src, animdata_dst, animsetdata_dst)
 
 def load_backup():
-    cfg = config.require_config()
-    ud = update.require_update()
+    cfg = config.get_global('config')
+    ud = config.get_global('update')
 
     backups_path = Path(cfg.backups)
 
@@ -78,9 +77,9 @@ def load_backup():
     
     print("Restoring backup...")
     copy_backups(animdata_src, animsetdata_src, animdata_dst, animsetdata_dst)
-    ud.update_all()
+    ud.update_cache()
 
-def copy_backups(animdata_src, animsetdata_src, animdata_dst, animsetdata_dst):
+def copy_backups(animdata_src:Path, animsetdata_src: Path, animdata_dst: Path, animsetdata_dst: Path):
     try:
         # make sure the destination directories exist
         if not os.path.exists(os.path.dirname(animdata_dst)):
@@ -134,14 +133,14 @@ def copy_backups(animdata_src, animsetdata_src, animdata_dst, animsetdata_dst):
         return
 
 def restore_vanilla_cache():
-    ud = update.require_update()
+    ud = config.get_global('update')
     
     while True:
         print("Note: This will overwrite your current animation cache with the vanilla cache. Continue? Y/N")
         match input().lower():
             case 'y':
-                    util.unpack_vanilla_cache()
-                    ud.update_all()
+                    cache.unpack_vanilla_cache()
+                    ud.update_cache()
                     print("Vanilla cache restored.")
                     return
             case 'n':
@@ -149,7 +148,7 @@ def restore_vanilla_cache():
                 return
             
 def clean_temp():
-    cfg = config.require_config()
+    cfg = config.get_global('config')
     temp_path = cfg.cache / "temp"
     if os.path.exists(temp_path):
         for root, dirs, files in os.walk(temp_path, topdown=False):

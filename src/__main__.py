@@ -2,7 +2,7 @@ import sys
 import os
 import argparse
 
-import config, system, update
+import config, system, update, util
 
 import extract, append, validate
 
@@ -48,13 +48,24 @@ def build_parser():
   parser.add_argument("-gui",
                       help="Launch the full program.",
                       action='store_true')
+  
   # debug helpers
+  parser.add_argument("-noupdate",
+                      action='store_true',
+                      help="Skip updating the program. Note: This might break stuff, only use if you know what you're doing.")
+  
   parser.add_argument("-debug",
-                      action='store_true')
+                      action='store_true',
+                      help=argparse.SUPPRESS)
+  
+  parser.add_argument("-dryrun",
+                      action='store_true',
+                      help=argparse.SUPPRESS)
   return parser
 
 def has_cli_actions(parsed_args) -> bool:
-    # Check if any meaningful command-line arguments were provided.
+    # check if any meaningful command-line arguments were provided.
+    # only consider arguments that trigger actions
     return any([
         parsed_args.update,
         parsed_args.extract,
@@ -63,13 +74,18 @@ def has_cli_actions(parsed_args) -> bool:
         parsed_args.gui,
         parsed_args.backup,
         parsed_args.restore,
-        parsed_args.restorefromarchive
+        parsed_args.restorefromarchive,
+        parsed_args.debug
     ])
 
 
 def process_cli(args):
-    ud = update.require_update()
-    #Run actions requested via command-line arguments and exit.
+    ud = config.get_global('update')
+    # Run actions requested via command-line arguments and exit.
+
+    # Auto-update unless noupdate is specified
+    if not args.noupdate:
+        ud.update_cache()
 
     # process gui first, even if other actions are requested
     if args.gui:
@@ -86,7 +102,7 @@ def process_cli(args):
         system.load_backup()
 
     if args.update:
-        ud.update_all()
+        ud.update_cache()
 
     if args.extract:
         # extract may be a list of project names
@@ -101,17 +117,12 @@ def process_cli(args):
     if args.append:
         append.append_projects(args.append)
         pass
-
-    if args.debug:
-        import util
-        util.helper_function()
-    
     return 0
 
 # only runs this when you open the application
 # commands can also be accessed from the command line
-def interactive_loop():
-    ud = update.require_update()
+def interactive_loop(args=None):    
+    ud = config.get_global('update')
 
     print("Entering interactive mode. Type 'help' for a list of commands.")
     try:
@@ -122,7 +133,7 @@ def interactive_loop():
                     print("Blah blah list of commands")
 
                 case "update":
-                    ud.update_all()
+                    ud.update_cache()
 
                 case _ if inp.startswith("extract "):
                     project_list = inp.split(" ", 1)[1].split(" ")                  
@@ -144,41 +155,57 @@ def interactive_loop():
                     system.restore_vanilla_cache()
 
                 case "quit":
-                    print("Exiting...")
-                    return
+                    return 0
               
-                case "debug":
-                    import util
-                    util.helper_function()
+                # case "debug":
+                #     import util
+                #     util.helper_function()
+
+                case "dumpjson":
+                    cfg = config.get_global('config')
+                    util.dump_json(cfg.cache / config.animdata_pq_path, cfg.cache / config.animdata_json_path)
+                    util.dump_json(cfg.cache / config.animsetdata_pq_path, cfg.cache / config.animsetdata_json_path)
+                    print("Dumped animdata and animsetdata to JSON.")
               
-    except (KeyboardInterrupt, EOFError):
-        print("Something went wrong, exiting...")
-        os.system('pause')
-        return
+    except Exception as e:
+        print(f"An error has occurred: {e}")
+        util.pause_wait_for_input()
+        return 1
 
-def main(argv=None):
-    config.set_global_config(config.Configurator())
-    update.set_global_update(update.Updater())
-
-    ud = update.require_update()
-       
+def main(argv=None): 
+    
     # detect whether the user invoked the program with command-line flags
     argv = argv if argv is not None else sys.argv[1:]
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    # force-run update
-    ud.update_all()
+    dryrun = argv.dryrun if argv else False
+
+    if not config.set_globals(config.Configurator(), update.Updater(), dryrun=dryrun) == 0:
+        print("Could not set globals!")
+        return 1
+    
+    # make sure the cache is valid
+    if not util.sanitize_cache():
+        return
+
+    force_update = True
 
     # check for command-line args
     if has_cli_actions(args):
         code = process_cli(args)
         if not args.gui:
             return 0
-    else:
-        # no command-line args, run interactive loop
-        interactive_loop()
-        return 0
+        else: force_update = False # we have already updated via cli
+
+    if force_update:
+        # auto-update on launch
+        ud = config.get_global('update')
+        ud.update_cache()
+    
+    # no command-line args, or args.gui = True, run interactive loop
+    interactive_loop()
+    return 0
 
 if __name__ == "__main__":
     raise SystemExit(main())
