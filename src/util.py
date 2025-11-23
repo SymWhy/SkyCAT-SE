@@ -4,17 +4,10 @@ import os
 from pathlib import Path
 import pandas as pd
 import json
+import logging
 
-def get_path_case_insensitive(source: Path):
-    parent = source.parent
-    target_name = source.name.casefold()
-    try:
-        for child in parent.iterdir():
-            if child.name.casefold() == target_name:
-                return child
-    except FileNotFoundError:
-        return None
 
+# needs optimizing
 def count_lines_and_strip(file: Path):
 
     with open(file, 'r', encoding="utf-8") as rfile:
@@ -43,17 +36,31 @@ def count_lines_and_strip(file: Path):
     return line_count
 
 def pause_wait_for_input():
-    print("Press enter to continue...")
+    ("Press enter to continue...")
     input()
     return 0
 
-def fast_skip(fileobj, n):
+def fast_skip(fileobj, n: int=1):
     # deque with maxlen=0 consumes the islice iterator without building a list.
     deque(islice(fileobj, n), maxlen=0)
-import io
+
+def prompt_yes_no(message: str, message_y: str = None, message_n: str = None) -> bool:
+    print(f"{message} Y/N")
+    while True:
+        match input().lower():
+            case 'y':
+                if message_y:
+                    logging.info(message_y)
+                return True
+            case 'n':
+                if message_n:
+                    logging.info(message_n)
+                return False
 
 def dump_json(parquet: Path, dst: Path):   
     datalist = pd.read_parquet(parquet).to_dict(orient='records')
+
+    os.makedirs(dst.parent, exist_ok=True)
 
     with open(dst, 'w', encoding='utf-8') as jsonfile:
         json.dump(datalist, jsonfile, indent=4)

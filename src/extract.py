@@ -1,8 +1,10 @@
 import shutil
-import os.path
-import config, cache, system, util
+import os
+import logging
 
-def extract_projects(listprojects: list[str]):
+import config, cache, errors, system, util
+
+def extract_projects(listprojects: list[str], yes_im_sure: bool=False):
     cfg = config.get_global('config')
     ud = config.get_global('update')
     dryrun = config.get_global('dryrun')
@@ -13,31 +15,27 @@ def extract_projects(listprojects: list[str]):
     animdata_df = ud.animdata_df
     animsetdata_df = ud.animsetdata_df
 
+    meshes_dir = cfg.skyrim / "meshes"
+    v_animdata = config.animdata
+    v_animsetdata = config.animsetdata
+
     for project in listprojects:
         project = project.lower()
 
         # check if project exists
         if cache.is_in_cache(project) == False:
-            print(f"Warning: Project {project} not found. Cancelling...")
+            logging.warning(f"Project {project} not found. Cancelling...")
             return 0
 
         unpacked = cache.is_unpacked(project)
 
         # check if there are already extracted files in meshes
-        if unpacked[0] == True or unpacked[1] == True or unpacked[2] == True:
-            print(f"Warning: Project {project} already has extracted files. Overwrite? Y/N")
-            extract_ok = False
-            while True:
-                match input().lower():
-                    case 'y':
-                        extract_ok = True
-                        break
-                    case 'n':
-                        print(f"Skipping extraction of {project}.")
-                        extract_ok = False
-                        break
-            if not extract_ok:
+        if (any(unpacked)) and not yes_im_sure:
+            if not util.prompt_yes_no(f"Warning: Project {project} already has extracted files. Overwrite?",
+                                            message_y=f"Overwriting existing files for project {project}.",
+                                            message_n=f"Skipping extraction for project {project}."):
                 continue
+            
             
 
         project_index = ud.cached_projects.index(project)
@@ -54,8 +52,10 @@ def extract_projects(listprojects: list[str]):
         # check that our animdata directory exists
         animdata_dir = cfg.skyrim / config.animdata_dir
 
-        if not os.path.exists(animdata_dir):
-            os.makedirs(animdata_dir)
+        try:
+            os.makedirs(animdata_dir, exist_ok=True)
+        except (OSError, PermissionError) as e:
+            raise errors.WriteError(path=str(animdata_dir), message=f"Could not create animdata directory: {e}") from e
 
         # create temporary cache folders
         try:
@@ -64,25 +64,28 @@ def extract_projects(listprojects: list[str]):
             os.makedirs(animdata_temp_folder, exist_ok=True)
             os.makedirs(animsetdata_temp_folder, exist_ok=True)
 
-        except Exception as e:
-            print(f"Error creating temporary folders: {e}")
-            system.clean_temp()
-            return 1
+        except (OSError, PermissionError) as e:
+            raise errors.WriteError(path=str(cfg.cache / "temp"), message=f"Could not create temporary cache directories: {e}") from e 
 
         # open the animdata file
-        with open(cfg.skyrim / config.animdata, "r", encoding="utf-8") as readable:
+        with open(cfg.skyrim / "meshes" / config.animdata, "r", encoding="utf-8") as readable:
 
             readline = readable.readline
             strip = str.strip
 
+            # record project start line for debug purposes
+            debug_line = int(animdata_df.at[project_index, "project_start"])
+
             # write the animdata cache file
             try:
                 with open((animdata_temp_folder / (project + ".txt")), 'w', encoding="utf-8") as animdata_cache:
+
                     # read lines up to the project start
                     util.fast_skip(readable, int(animdata_df.at[project_index, "project_start"]))
 
                     # skip line count
                     util.fast_skip(readable, 1)
+                    debug_line += 1
 
                     lines_anims = int(animdata_df.at[project_index, "lines_anims"])
 
@@ -93,49 +96,56 @@ def extract_projects(listprojects: list[str]):
 
                     for i in range(lines_anims - n):
                         animdata_cache.write(readline())
-                    animdata_cache.write(strip(readline()))
+                        debug_line += 1
 
-            except Exception as e:
-                print(f"Error extracting animdata for {project}: {e}")
-                system.clean_temp()
-                return 1
+                    animdata_cache.write(strip(readline()))
+                    debug_line += 1
+
+            except ValueError as e:
+                raise errors.ParseError(path=str(meshes_dir / v_animdata), message=f"Invalid lines_anims count at line {debug_line}") from e
+            except (OSError, PermissionError) as e:
+                raise errors.WriteError(path=str(meshes_dir / v_animdata), message=f"Error writing animdata cache for project {project} at line {debug_line}: {e}") from e
 
             # write the boundanims cache file
             if isCreature:
 
                 boundanims_dir = animdata_temp_folder / "boundanims"
-                if not os.path.exists(boundanims_dir):
-                    os.makedirs(boundanims_dir)
 
                 try:
-                    with open(boundanims_dir / ("anims_" + project + ".txt"), 'w', encoding="utf-8") as boundanims_cache:
+                    os.makedirs(boundanims_dir, exist_ok=True)
+                except (OSError, PermissionError) as e:
+                    raise errors.WriteError(path=str(boundanims_dir), message=f"Could not create boundanims directory: {e}") from e
+
+                with open(boundanims_dir / ("anims_" + project + ".txt"), 'w', encoding="utf-8") as boundanims_cache:
+                    try:
 
                         # skip whitespace and linecount
                         util.fast_skip(readable, 2)
+                        debug_line += 2
 
                         lines_boundanims = int(animdata_df.at[project_index, "lines_boundanims"])
 
                         for i in range(lines_boundanims - 2):
-
                             boundanims_cache.write(readline())
+                            debug_line += 1
 
                         boundanims_cache.write(strip(readline()))
+                        debug_line += 1
 
-
-                except Exception as e:
-                    print(f"Error extracting boundanims for {project}: {e}")
-                    system.clean_temp()
-                    return 1
+                    except (OSError, PermissionError) as e:
+                        raise errors.WriteError(path=str(meshes_dir / v_animdata), message=f"Error writing boundanims cache for project {project} at line {debug_line}: {e}") from e
 
         ### ANIMATIONSETDATA ###
 
         if isCreature:
                 
             # open the animdata file
-            with open(cfg.skyrim / config.animsetdata, "r", encoding="utf-8") as readable:
+            with open(cfg.skyrim / 'meshes' / config.animsetdata, "r", encoding="utf-8") as readable:
 
                 readline = readable.readline
                 strip = str.strip
+
+                debug_line = int(animsetdata_df.at[animset_index, "animset_start"])
 
                 # write the animsetdata cache file
                 try:
@@ -144,19 +154,21 @@ def extract_projects(listprojects: list[str]):
 
                     # get the expected number of animation sets
                     animset_count = int(strip(readline()))
+                    debug_line += 1
                     expected_animset_count = int(animsetdata_df.at[animset_index, "count_animsets"])
 
                     # check to make sure the cache data matches
                     if animset_count != expected_animset_count:
-                        print("Error: Animset count mismatch. Regenerating the cache might fix this.")
-                        print("Expected {}, got {}.".format(expected_animset_count, animset_count))
-                        return
+                        logging.debug(f"Expected {expected_animset_count} sets, got {animset_count}.")
+                        raise errors.ParseError(path=str(meshes_dir / v_animsetdata), message=f"Animation set count mismatch at line {debug_line}")
 
                     project_dir = animsetdata_temp_folder / str(project + "data")
 
                     # check to make sure the path to project's "projectdata" folder exists
-                    if not os.path.exists(project_dir):
-                        os.makedirs(project_dir)
+                    try:
+                        os.makedirs(project_dir, exist_ok=True)
+                    except (OSError, PermissionError) as e:
+                        raise errors.WriteError(path=str(project_dir), message=f"Could not create project animation set directory: {e}") from e
 
                     # create the set list file
                     # this file contains a list of all the animation set text files
@@ -166,6 +178,7 @@ def extract_projects(listprojects: list[str]):
                         # write the file names to the animsetlist txt
                         for i in range(animset_count):
                             animset_list.append(strip(readline()).lower())
+                            debug_line += 1
 
                         for item in animset_list:
                             animsetlist.write(item + "\n")
@@ -175,18 +188,29 @@ def extract_projects(listprojects: list[str]):
 
                             # write the first V3
                             writable.write(readline())
+                            debug_line += 1
                         
-                            # write notes A, B, and C
-                            notes_A = readline()
-                            notes_A_int = int(strip(notes_A))
-                            writable.write(notes_A)
+                            try:
+                                # write notes A, B, and C
+                                notes_A = readline()
+                                debug_line += 1
+                                notes_A_int = int(strip(notes_A))
+                                writable.write(notes_A)
+                            except ValueError as e:
+                                raise errors.ParseError(path=str(meshes_dir / v_animsetdata), message=f"Invalid animation set notes count: {notes_A} at line {debug_line}: {e}") from e
+
 
                             if notes_A_int != 0:
                                 for j in range(notes_A_int):
                                     writable.write(readline())
+                                    debug_line += 1
 
-                            notes_B = readline()
-                            notes_B_int = int(strip(notes_B))
+                            try:
+                                notes_B = readline()
+                                debug_line += 1
+                                notes_B_int = int(strip(notes_B))
+                            except ValueError as e:
+                                raise errors.ParseError(path=str(meshes_dir / v_animsetdata), message=f"Invalid animation set notes count: {notes_B} at line {debug_line}: {e}") from e
 
                             writable.write(notes_B)
                             
@@ -194,9 +218,14 @@ def extract_projects(listprojects: list[str]):
                                 for j in range(notes_B_int):
                                     for k in range(3):
                                         writable.write(readline())
+                                        debug_line += 1
 
-                            notes_C = readline()
-                            notes_C_int = int(strip(notes_C))
+                            try:
+                                notes_C = readline()
+                                debug_line += 1
+                                notes_C_int = int(strip(notes_C))
+                            except ValueError as e:
+                                raise errors.ParseError(path=str(meshes_dir / v_animsetdata), message=f"Invalid animation set notes count: {notes_C} at line {debug_line}: {e}") from e
 
                             writable.write(notes_C)
 
@@ -205,16 +234,23 @@ def extract_projects(listprojects: list[str]):
                                     # skip two lines
                                     for k in range(2):
                                         writable.write(readline())
+                                        debug_line += 1
 
                                     n = readline()
+                                    debug_line += 1
                                     writable.write(n)
 
                                     # skip 
                                     for k in range(int(strip(n))):
                                         writable.write(readline())
-
-                            file_count = readline()
-                            file_count_int = int(strip(file_count))
+                                        debug_line += 1
+                            
+                            try:
+                                file_count = readline()
+                                debug_line += 1
+                                file_count_int = int(strip(file_count))
+                            except ValueError as e:
+                                raise errors.ParseError(path=str(meshes_dir / v_animsetdata), message=f"Invalid animation set file count: {file_count} at line {debug_line}: {e}") from e
 
                             writable.write(file_count)
 
@@ -222,26 +258,27 @@ def extract_projects(listprojects: list[str]):
                                 # skip two lines
                                 for k in range(2):
                                     writable.write(readline())
+                                    debug_line += 1
 
                                 # if we are on the last line, strip whitespace.
                                 if i == animset_count - 1 and j == file_count_int - 1:
                                     writable.write(strip(readline()))
+                                    debug_line += 1
                                 
-                                else: writable.write(readline())
+                                else:
+                                    writable.write(readline())
+                                    debug_line += 1
                       
-                except Exception as e:
-                    print(f"Error while extracting animset data for {project}: {e}")
-                    system.clean_temp()
-                    return 1
+                except (OSError, PermissionError) as e:
+                    raise errors.WriteError(path=str(meshes_dir / v_animsetdata), message=f"Error writing animsetdata cache for project {project} at line {debug_line}: {e}") from e
                 
-        print(f"Successfully extracted {project}.")
+        logging.info(f"Successfully extracted {project}.")
 
     if not dryrun:
         # move temp files to their final destination
         shutil.copytree(cfg.cache / "temp", cfg.skyrim, dirs_exist_ok=True)
     else:
-        print("Dry run complete. No changes were made.")
-        util.pause_wait_for_input()
+        logging.info("Dry run complete. No changes were made.")
 
     # remove temp folders if they still exist
     system.clean_temp()
@@ -249,7 +286,7 @@ def extract_projects(listprojects: list[str]):
     return 0
 
 
-def extract_all(and_i_mean_all_of_them=False):
+def extract_all(yes_im_sure: bool=False, and_i_mean_all_of_them: bool=False, dryrun: bool=False):
     cfg = config.get_global('config')
     ud = config.get_global('update')
 
@@ -262,22 +299,16 @@ def extract_all(and_i_mean_all_of_them=False):
 
     # make sure we have modded projects to extract
     if total_projects - vanilla_projects_count == 0 and not and_i_mean_all_of_them:
-        print("Error: No modded projects found.")
+        logging.warning("No modded projects found.")
         return
     
     extract_everything = False
     
-    if and_i_mean_all_of_them:
-            while extract_everything == False:
-                print("This will extract ALL projects, including vanilla ones.")
-                print("Are you sure you want to do this? Y/N")
-                response = input().lower()
-
-                match response:
-                    case 'y':
-                        extract_everything = True
-                    case 'n':
-                        return 0
+    if and_i_mean_all_of_them and not yes_im_sure:
+        print("This will extract ALL projects, including vanilla ones.")
+        extract_everything = util.prompt_yes_no("Are you sure you want to do this?", 
+                                                message_y="Extracting all projects, including vanilla ones.",
+                                                message_n="Cancelling operation.")
 
     # loop through all projects and check if they are vanilla or not
     for project_name in (animdata_df)['project_name']:
@@ -288,9 +319,17 @@ def extract_all(and_i_mean_all_of_them=False):
     match extract_everything:
         
         case True:
+            if ud.cached_projects == []:
+                logging.info("No cached projects found. Updating cache...")
+                if ud.update_cache() != 0:
+                    raise errors.CacheError(path=str(cfg.cache), message="Failed to update cache before extracting all projects.")
             to_extract = ud.cached_projects
 
         case False:
+            if ud.cached_projects == []:
+                logging.info("No cached projects found. Updating cache...")
+                if ud.update_cache() != 0:
+                    raise errors.CacheError(path=str(cfg.cache), message="Failed to update cache before extracting all projects.")
             to_extract = ud.new_projects
 
     extract_projects(to_extract)

@@ -1,8 +1,9 @@
+import logging
 import sys
 import os
 import argparse
 
-import config, system, update, util
+import config, cache, errors, system, update, util
 
 import extract, append, validate
 
@@ -50,6 +51,10 @@ def build_parser():
                       action='store_true')
   
   # debug helpers
+  parser.add_argument("-yesimsure",
+                      action='store_true',
+                        help="Automatically skip confirmation prompts. Not recommended!")
+  
   parser.add_argument("-noupdate",
                       action='store_true',
                       help="Skip updating the program. Note: This might break stuff, only use if you know what you're doing.")
@@ -60,7 +65,11 @@ def build_parser():
   
   parser.add_argument("-dryrun",
                       action='store_true',
-                      help=argparse.SUPPRESS)
+                      help="Run the program in dry run mode, where no actual changes are made to files.")
+  
+  parser.add_argument("-dumpjson",
+                      action='store_true',
+                      help="Dump the current cache data to a JSON file.")
   return parser
 
 def has_cli_actions(parsed_args) -> bool:
@@ -75,13 +84,16 @@ def has_cli_actions(parsed_args) -> bool:
         parsed_args.backup,
         parsed_args.restore,
         parsed_args.restorefromarchive,
-        parsed_args.debug
+        parsed_args.debug,
+        parsed_args.dumpjson
     ])
 
 
 def process_cli(args):
     ud = config.get_global('update')
     # Run actions requested via command-line arguments and exit.
+    if args.dumpjson:
+        cache.dump_cache()
 
     # Auto-update unless noupdate is specified
     if not args.noupdate:
@@ -96,7 +108,7 @@ def process_cli(args):
         system.save_backup()
 
     if args.restorefromarchive:
-        system.restore_vanilla_cache()
+        cache.restore_vanilla_cache(yes_im_sure=args.yesimsure)
 
     if args.restore:
         system.load_backup()
@@ -106,16 +118,16 @@ def process_cli(args):
 
     if args.extract:
         # extract may be a list of project names
-        extract.extract_projects(args.extract)
+        extract.extract_projects(yes_im_sure=args.yesimsure, listprojects=args.extract)
 
     if args.extractall:
         if args.ireallymeanit:
-            extract.extract_all_projects(and_i_mean_all_of_them=True)
+            extract.extract_all(yes_im_sure=args.yesimsure, and_i_mean_all_of_them=True)
         else:
-            extract.extract_all_projects()
+            extract.extract_all(yes_im_sure=args.yesimsure)
 
     if args.append:
-        append.append_projects(args.append)
+        append.append_projects(project_list=args.append, yes_im_sure=args.yesimsure)
         pass
     return 0
 
@@ -125,52 +137,66 @@ def interactive_loop(args=None):
     ud = config.get_global('update')
 
     print("Entering interactive mode. Type 'help' for a list of commands.")
-    try:
-      while True:
-          inp = input('> ').strip().lower()
-          match inp:
-                case "help":
-                    print("Blah blah list of commands")
+    while True:
+        inp = input('> ').strip().lower()
+        match inp:
+            case "help":
+                print("Available commands:\n",
+                      "  update                 - Update the program to the current cache.\n",
+                      "  extract [projects]     - Extract one or more projects from the animation cache.\n",
+                      "  extractall             - Extract all non-vanilla projects from the animation cache.\n",
+                      "  append [projects]      - Append one or more projects to the animation cache.\n",
+                      "  backup                 - Create a backup of the current animation cache.\n",
+                      "  restore                - Restore the animation cache from the latest backup.\n",
+                      "  restorefromarchive     - Restore the vanilla animation cache from the program archive.\n",
+                      "  dumpjson               - Dump the current animation cache data to a JSON file.\n")
 
-                case "update":
-                    ud.update_cache()
+            case "update":
+                ud.update_cache()
 
-                case _ if inp.startswith("extract "):
-                    project_list = inp.split(" ", 1)[1].split(" ")                  
-                    extract.extract_projects(project_list)
+            case _ if inp.startswith("extract "):
+                logging.info("Extracting projects...")
+                project_list = inp.split(" ", 1)[1].split(" ")                  
+                extract.extract_projects(listprojects=project_list)
 
-                case _ if inp.startswith("append "):
-                    project = inp.split(" ", 1)[1].split(" ") 
-                    append.append_projects(project)
+            case "extractall":
+                if args and args.ireallymeanit:
+                    logging.info("Extracting all projects, including vanilla...")
+                    extract.extract_all(yes_im_sure=args.yesimsure, and_i_mean_all_of_them=True, dryrun=config.get_global('dryrun'))
+                else:
+                    logging.info("Extracting all non-vanilla projects...")
+                    extract.extract_all(yes_im_sure=args.yesimsure if args else False, dryrun=config.get_global('dryrun'))
 
-                case "backup":
-                    print("Creating cache backup...")
-                    system.save_backup()
+            case _ if inp.startswith("append "):
+                logging.info("Appending projects...")
+                project = inp.split(" ", 1)[1].split(" ") 
+                append.append_projects(project_list=project)
 
-                case "restore":
-                    print("Restoring cache backup...")
-                    system.load_backup()
+            case "backup":
+                logging.info("Creating cache backup...")
+                system.save_backup()
 
-                case "restorefromarchive":
-                    system.restore_vanilla_cache()
+            case "restore":
+                logging.info("Restoring cache backup...")
+                system.load_backup()
 
-                case "quit":
-                    return 0
-              
-                # case "debug":
-                #     import util
-                #     util.helper_function()
+            case "restorefromarchive":
+                logging.info("Restoring vanilla cache from archive...")
+                cache.restore_vanilla_cache()
 
-                case "dumpjson":
-                    cfg = config.get_global('config')
-                    util.dump_json(cfg.cache / config.animdata_pq_path, cfg.cache / config.animdata_json_path)
-                    util.dump_json(cfg.cache / config.animsetdata_pq_path, cfg.cache / config.animsetdata_json_path)
-                    print("Dumped animdata and animsetdata to JSON.")
-              
-    except Exception as e:
-        print(f"An error has occurred: {e}")
-        util.pause_wait_for_input()
-        return 1
+            case "quit":
+                return 0
+            
+            case "logging ":
+                level = inp.split(" ", 1)[1].upper()
+                system.set_log_level(level)
+                logging.info(f"Log level set to {level}.")
+
+            case "dumpjson":
+                cfg = config.get_global('config')
+                dump_dir = cfg.cache / "dump"
+                cache.dump_cache()
+                logging.info("Dumped animdata and animsetdata to JSON.")
 
 def main(argv=None): 
     
@@ -181,13 +207,14 @@ def main(argv=None):
 
     dryrun = argv.dryrun if argv else False
 
+    system.set_log_level()
+
     if not config.set_globals(config.Configurator(), update.Updater(), dryrun=dryrun) == 0:
-        print("Could not set globals!")
-        return 1
+        raise errors.ConfigError()
     
     # make sure the cache is valid
-    if not util.sanitize_cache():
-        return
+    if not cache.sanitize_cache(args.yesimsure):
+        raise errors.CacheError(message="Failed to sanitize cache.")
 
     force_update = True
 

@@ -1,17 +1,18 @@
+import logging
 import os
 from pathlib import Path
 from shutil import copy2
-import pandas as pd
 
-import config, cache, system, util
+import config, cache, errors, system, util
 
-def append_projects(project_list: list[str]):
+def append_projects(project_list: list[str], yes_im_sure: bool = False):
     cfg = config.get_global('config')
     ud = config.get_global('update')
     dryrun = config.get_global('dryrun')
 
     # ensure cache is up to date
-    ud.update_cache()
+    if ud.update_cache() != 0:
+        raise errors.CacheError(message="Cache is not up to date, cannot append projects.")
 
     had_a_creature = False
 
@@ -20,36 +21,27 @@ def append_projects(project_list: list[str]):
     # check if the project is available to be merged
     for project_name in project_list:
         if not cache.can_be_merged(project_name):
-            print(f"Warning: {project_name} cannot be merged.")
+            logging.warning(f"{project_name} cannot be merged.")
             return
         
     # prompt user for confirmation of overwrite:
-    print(f"Warning: This process will overwrite existing cache files. Is this okay? Y/N")
-    while True:
-        match input().lower():
-            case 'y':
-                extract_ok = True
-                break
-            case 'n':
-                print(f"Cancelling operation.")
-                extract_ok = False
-                return
+    if not yes_im_sure:
+        if not util.prompt_yes_no(f"This process will overwrite existing cache files. Is this okay?",
+                           message_y="Proceeding.",
+                           message_n="Cancelling append."):
+            return 0
 
-    # offer to back up the existing cache
-    if os.path.exists(cfg.skyrim / config.animdata) or os.path.exists(cfg.skyrim / config.animsetdata):
-        print(f"Would you like to back up the existing cache files? Y/N")
-        while True:
-            match input().lower():
-                case 'y':
-                    system.save_backup()
-                    break
-                case 'n':
-                    print(f"Skipping backup.")
-                    break
+        # offer to back up the existing cache
+        if cfg.skyrim / "meshes" / config.animdata.exists() or cfg.skyrim / "meshes" / config.animsetdata.exists():
+            if util.prompt_yes_no("Would you like to back up the existing cache files?",
+                                message_y="Backing up cache files.",
+                                message_n="Skipping backup."):
+                system.save_backup(yes_im_sure=True)
 
 
-    if not os.path.exists(cfg.cache / config.animdata_json_path):
-        print("Error: Can't find cache json.")
+    if ud.animdata_df is None or ud.animsetdata_df is None:
+        if not ud.update_cache():
+            raise errors.CacheError(message="Unable to update cache, cannot append projects.")
         return 1
     
     animdata_df = ud.animdata_df
@@ -61,14 +53,12 @@ def append_projects(project_list: list[str]):
     creatures_dict = cache.get_creature_projects(project_list)
     count_creatures += sum(1 for p in project_list if creatures_dict.get(p))
 
-
     # open old cache files
-    old_animdata = cfg.skyrim / config.animdata
-    old_animsetdata = cfg.skyrim / config.animsetdata
+    old_animdata = cfg.skyrim / 'meshes' / config.animdata
+    old_animsetdata = cfg.skyrim / 'meshes' / config.animsetdata
     
     # create temporary cache folder
-    if not os.path.exists(cfg.cache / "temp"):
-        os.makedirs(cfg.cache / "temp", exist_ok=True)
+    os.makedirs(cfg.cache / "temp", exist_ok=True)
 
     temp_animdata = cfg.cache / "temp" / "animationdatasinglefile.txt.tmp"
     temp_animsetdata = cfg.cache / "temp" / "animationsetdatasinglefile.txt.tmp"
@@ -78,107 +68,124 @@ def append_projects(project_list: list[str]):
     # copy over old animdata file to temp cache file by line
     with open(temp_animdata, 'w', encoding="utf-8") as t_animdata:
         with open(old_animdata, 'r', encoding="utf-8") as o_animdata:
+            readline = o_animdata.readline
+            strip = str.strip
 
-            o_animdata.readline()  # skip first line
+            try:
+                o_animdata.readline()  # skip first line
 
-            # write new project count
-            t_animdata.write(f"{count_projects}")
+                # write new project count
+                t_animdata.write(f"{count_projects}")
 
-            # copy existing project names
-            for _ in range(len(animdata_df)):
-                t_animdata.write("\n" + o_animdata.readline().strip())
-            
-            # append each new project name NO NEWLINE
-            for project_name in project_list:
-                t_animdata.write("\n" + project_name + ".txt")
+                # copy existing project names
+                for _ in range(len(animdata_df)):
+                    t_animdata.write("\n" + strip(readline()))
+                
+                # append each new project name NO NEWLINE
+                for project_name in project_list:
+                    t_animdata.write("\n" + project_name + ".txt")
 
-            # copy everything else
-            for line in o_animdata:
-                t_animdata.write("\n" + line.strip())
+                # copy everything else
+                for line in o_animdata:
+                    t_animdata.write("\n" + strip(line))
+
+            except (OSError, PermissionError) as e:
+                raise errors.WriteError(path=str(old_animdata), message=f"Error copying from old animdata file: {e}") from e
     
-    # copy over old animsetdata file to temp cache file by line
+            # copy over old animsetdata file to temp cache file by line
             with open(temp_animsetdata, 'w', encoding="utf-8") as t_animsetdata:
                 with open(old_animsetdata, 'r', encoding="utf-8") as o_animsetdata:
-
-                    # write new project count
-                    t_animsetdata.write(f"{count_creatures}")
-
-                    o_animsetdata.readline()  # skip first line
-
-                    # copy existing project names
-                    for _ in range(len(animsetdata_df)):
-                        t_animsetdata.write("\n" + o_animsetdata.readline().strip())
                     
-                    # append the new project names only if they are creatures
-                    for project_name in project_list:
-                        if creatures_dict.get(project_name):
-                            t_animsetdata.write("\n" + project_name + "data\\" + project_name + ".txt")
+                    try:
+                        # write new project count
+                        t_animsetdata.write(f"{count_creatures}")
 
-                    # copy everything else
-                    for line in o_animsetdata:
-                        t_animsetdata.write("\n" + line.strip())
+                        util.fast_skip(o_animsetdata)  # skip first line
+
+                        # copy existing project names
+                        for _ in range(len(animsetdata_df)):
+                            t_animsetdata.write("\n" + strip(o_animsetdata.readline()))
+                        
+                        # append the new project names only if they are creatures
+                        for project_name in project_list:
+                            if creatures_dict.get(project_name):
+                                t_animsetdata.write("\n" + project_name + "data\\" + project_name + ".txt")
+
+                        # copy everything else
+                        for line in o_animsetdata:
+                            t_animsetdata.write("\n" + line.strip())
+                            
+                    except (OSError, PermissionError) as e:
+                        raise errors.WriteError(path=str(old_animsetdata), message=f"Error copying from old animsetdata file: {e}") from e
+
 
 
     # //// MERGING NEW PROJECTS ////
     for project_name in project_list:
 
-        print(f"Appending {project_name}.")
+        logging.debug(f"Appending {project_name}.")
 
-        try:
-            # check again to make sure the files exist
-            proj_animdata = util.get_path_case_insensitive(cfg.skyrim / "meshes" / "animationdata" / f"{project_name}.txt")
-            
-            if not proj_animdata:
-                raise Exception(f"Error: {project_name} is missing!")
-        except Exception as e:
-            print(e)
-            return 1
-        
+        # check again to make sure the files exist
+        proj_animdata = cfg.skyrim / "meshes" / "animationdata" / f"{project_name}.txt"
+
+        if not proj_animdata.exists():
+            raise FileNotFoundError(f"Missing animation data for {project_name}")
+
         # will fail silently if its not a creature
-        proj_boundanims = util.get_path_case_insensitive(cfg.skyrim / "meshes" / "animationdata" / "boundanims" / f"anims_{project_name}.txt")
-        proj_animsetdata = util.get_path_case_insensitive(cfg.skyrim / "meshes" / "animationsetdata" / f"{project_name}data" / f"{project_name}.txt")
+        proj_boundanims = cfg.skyrim / "meshes" / "animationdata" / "boundanims" / f"anims_{project_name}.txt"
+        proj_animsetdata = cfg.skyrim / "meshes" / "animationsetdata" / f"{project_name}data" / f"{project_name}.txt"
 
-        if proj_boundanims and proj_animsetdata:
+        if proj_boundanims.exists() and proj_animsetdata.exists():
             is_creature = True
         else:
             is_creature = False
 
-        if not os.path.exists(cfg.skyrim / proj_animdata):
-            print(f"Error: {project_name} is missing!")
-            return 1
-
         # if the last project was a creature, skip a line
         with open(temp_animdata, 'a',encoding="utf-8") as t_animdata:
-            if last_project_is_creature:
-                t_animdata.write("\n")  
+            try:
+                if last_project_is_creature:
+                    t_animdata.write("\n")  
 
-            with open(proj_animdata, 'r', encoding="utf-8") as p_animdata:
+                with open(proj_animdata, 'r', encoding="utf-8") as p_animdata:
+                    readline = p_animdata.readline
+                    strip = str.strip
 
-                lines_animdata = util.count_lines_and_strip(proj_animdata)
+                    lines_animdata = util.count_lines_and_strip(proj_animdata)
+                    
+                    try:
+                        debug_line = 0
 
-                # append line count NO NEWLINE
-                if is_creature: 
-                    t_animdata.write(f"\n{lines_animdata + 1}") # +1 required for creatures
-                else:
-                    t_animdata.write(f"\n{lines_animdata}")
-            
-                # append each line to the temp cache file
-                for _ in range(lines_animdata):
-                    t_animdata.write("\n")
-                    t_animdata.write(p_animdata.readline().strip())
-
-
-                # append boundanims
-                if is_creature:
-                    with open(proj_boundanims, 'r', encoding="utf-8") as p_boundanims:
-
-                        lines_boundanims = util.count_lines_and_strip(proj_boundanims)
-
-                        t_animdata.write(f"\n\n{lines_boundanims + 1}") # +1 required here as well
-
-                        for _ in range(lines_boundanims):
+                        # append line count NO NEWLINE
+                        if is_creature: 
+                            t_animdata.write(f"\n{lines_animdata + 1}") # +1 required for creatures
+                        else:
+                            t_animdata.write(f"\n{lines_animdata}")
+                    
+                        # append each line to the temp cache file
+                        for _ in range(lines_animdata):
                             t_animdata.write("\n")
-                            t_animdata.write(p_boundanims.readline().strip())
+                            t_animdata.write(strip(readline()))
+                            debug_line += 1
+                    except (OSError, PermissionError) as e:
+                        raise errors.WriteError(path=str(proj_animdata), message=f"Error appending animation data for {project_name} at line {debug_line}: {e}") from e
+
+
+                    # append boundanims
+                    if is_creature:
+                        with open(proj_boundanims, 'r', encoding="utf-8") as p_boundanims:
+
+                            debug_line = 0
+
+                            lines_boundanims = util.count_lines_and_strip(proj_boundanims)
+
+                            t_animdata.write(f"\n\n{lines_boundanims + 1}") # +1 required here as well
+
+                            for _ in range(lines_boundanims):
+                                t_animdata.write("\n")
+                                t_animdata.write(p_boundanims.readline().strip())
+                                debug_line += 1
+            except (OSError, PermissionError) as e:
+                raise errors.WriteError(path=str(proj_animdata), message=f"Error writing animation data for {project_name} at line {debug_line}: {e}") from e
 
         # append animsetdata
         if is_creature:
@@ -186,38 +193,60 @@ def append_projects(project_list: list[str]):
             had_a_creature = True
             last_project_is_creature = True
 
-            # convert creatureprojectdata txt to list
-            with open (proj_animsetdata, 'r') as p_animsetdata:
-                files_animsetdata = []
-                expected_file_count = util.count_lines_and_strip(proj_animsetdata)
+            try:
+                # convert creatureprojectdata txt to list
+                with open (proj_animsetdata, 'r') as p_animsetdata:
+                    readline = p_animsetdata.readline
+                    strip = str.strip
 
-                for _ in range(expected_file_count):
-                    files_animsetdata.append(p_animsetdata.readline().strip())
+                    debug_line = 0
+                    files_animsetdata = []
+                    expected_file_count = util.count_lines_and_strip(proj_animsetdata)
+
+                    for _ in range(expected_file_count):
+                        files_animsetdata.append(strip(readline()))
+            except IOError as e:
+                raise errors.ReadError(path=str(proj_animsetdata), message=f"Error reading animsetdata for {project_name} at line {debug_line}: {e}") from e
 
             with open(temp_animsetdata, 'a', encoding="utf-8") as t_animsetdata:
+                try:
+                    strip = str.strip
 
-                # append file count
-                t_animsetdata.write(f"\n{expected_file_count}")
+                    # append file count
+                    t_animsetdata.write(f"\n{expected_file_count}")
 
-                # append projectdata list contents to tmp animsetdata cache
+                    # append projectdata list contents to tmp animsetdata cache
+                    for entry in files_animsetdata:
+                        # skip any blank lines
+                        if entry.strip() == "\n":
+                            continue
+                        t_animsetdata.write(f"\n{entry}")
+                    
+                except (OSError, PermissionError) as e:
+                    raise errors.WriteError(path=str(temp_animsetdata), message=f"Error writing animsetdata for {project_name}: {e}") from e
+
                 for entry in files_animsetdata:
-                    t_animsetdata.write(f"\n{entry}")
-                
-                for entry in files_animsetdata:
-                    # skip any blank lines
-                    if entry.strip() == "\n":
-                        continue
+                    entry_file = Path(cfg.skyrim / "meshes" / "animationsetdata" / f"{project_name}data" / f"{entry}".strip())  # verify path exists
 
-                    entry_casefold = util.get_path_case_insensitive(Path(cfg.skyrim / "meshes" / "animationsetdata" / f"{project_name}data" / f"{entry}".strip()))  # verify path exists
+                    if not entry_file.exists():
+                        raise FileNotFoundError(f"Missing animsetdata entry file for {project_name}: {entry_file}")
 
-                    # copy contents from each txt to tmp animsetdata cache
-                    with open(entry_casefold, 'r', encoding="utf-8") as p_file:
-                        
-                        for i in range(util.count_lines_and_strip(entry_casefold)):
-                            t_animsetdata.write("\n")
-                            t_animsetdata.write(p_file.readline().strip())
+                        # copy contents from each txt to tmp animsetdata cache
+                    with open(entry_file, 'r', encoding="utf-8") as p_file:
+                        try:
+                            debug_line = 0
+                            
+                            for _ in range(util.count_lines_and_strip(entry_file)):
+                                t_animsetdata.write("\n")
+                                t_animsetdata.write(p_file.readline().strip())
+                                debug_line += 1
+
+                        except (OSError, PermissionError) as e:
+                            raise errors.WriteError(path=str(entry_file), message=f"Error appending animsetdata for {project_name} at line {debug_line}: {e}") from e
         else:
             last_project_is_creature = False
+
+        logging.info(f"Successfully appended {project_name}.")
 
     # //// POST PROCESSING ////
 
@@ -229,24 +258,22 @@ def append_projects(project_list: list[str]):
         t_animsetdata.write("\n")
 
     # validate tmp cache files
+    if ud.update_cache(cfg.cache / "temp") != 0:
+        raise errors.CacheError(message="Failed to validate new cache files. Cancelling...")
 
     if not dryrun:
         # copy tmp cache files to real cache files
-        copy2(temp_animdata, cfg.skyrim / config.animdata)
+        copy2(temp_animdata, cfg.skyrim / "meshes" / config.animdata)
 
         if had_a_creature:
-            copy2(temp_animsetdata, cfg.skyrim / config.animsetdata)
+            copy2(temp_animsetdata, cfg.skyrim / "meshes" / config.animsetdata)
 
     else:
-        print("Dry run complete. No changes were made.")
+        logging.info("Dry run complete. No changes were made.")
         util.pause_wait_for_input()
 
     # clean up tmp files
     if system.clean_temp() != 0:
-        print("Error: Could not clean temporary files.")
-        return 1
-
-    # run updater
-    ud.update_cache()
+        raise OSError("Failed to clean temporary files.")
 
     return 0

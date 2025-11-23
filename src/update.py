@@ -1,36 +1,39 @@
 from pathlib import Path
-import os.path
+import os
 import pandas as pd
-import pyarrow.parquet as pq
+import logging
 
-import config
-import util
+import config, errors, util
 
 class Updater:
-    # instantiate empty variables
-    vanilla_projects = []
-    cached_projects = []
-    new_projects = []
-    creature_projects = []
-
-    animdata_df = None
-    animsetdata_df = None
-
-    cache_dir = None
-    skyrim_dir = None
-
-    dryrun = False
-
     def __init__(self):
-        if not os.path.exists(Path("src") / "resources" / "vanilla_projects.txt"):
-            print("Error: Missing vanilla projects list. You may need to reinstall the program.")
-            return
-        return
+        # ensure the vanilla project list exists before continuing
+        if not (Path("src") / "resources" / "vanilla_projects.txt").exists():
+            raise FileNotFoundError("Missing vanilla projects list. You may need to reinstall the program.")
 
-    def update_cache(self):
+        # instance-scoped state (avoid shared mutable defaults)
+        self.vanilla_projects = []
+        self.cached_projects = []
+        self.new_projects = []
+        self.creature_projects = []
+
+        self.animdata_df = None
+        self.animsetdata_df = None
+
+        self.cache_dir = None
+        self.skyrim_dir = None
+
+        self.dryrun = False
+    
+
+    def update_cache(self, cache_folder: Path = None):
         
         cfg = config.get_global('config')
         self.dryrun = config.get_global('dryrun')
+
+
+        if cache_folder is None:
+            cache_folder = cfg.skyrim / "meshes"
 
         self.cache_dir = cfg.cache
         self.skyrim_dir = cfg.skyrim
@@ -44,9 +47,6 @@ class Updater:
         # make sure any stray backups have been deleted
         clean_parquet_backups(self.cache_dir / "cache")
         
-        # backup old cache files
-        backup_parquets(self.cache_dir / "cache")
-
         # make sure we have our vanilla project list loaded
         if self.vanilla_projects == []:
             with open(Path("src") / "resources" / "vanilla_projects.txt", "r", encoding="utf-8") as vanilla_dirlist:
@@ -57,22 +57,26 @@ class Updater:
                             break
                         
                         self.vanilla_projects.append(line.strip().lower())
-                except Exception as e:
-                    print(f"Error loading vanilla project list: {e}")
-                    restore_parquets(self.cache_dir)
-                    return
+                except IOError as e:
+                    raise errors.ReadError(path=str(vanilla_dirlist), message=f"Failed to read vanilla projects list: {e}") from e
 
-        animdata = config.animdata
-        animsetdata = config.animsetdata
+        logging.debug("Updating animdata index...")
 
-        print("Updating animdata index...")
+        animdata_file = self.skyrim_dir / 'meshes' / config.animdata
+        animsetdata_file = self.skyrim_dir / 'meshes' / config.animsetdata
 
-        with open(self.skyrim_dir / animdata, "r", encoding="utf-8") as readable:
-            # bind repeated calls
-            readline = readable.readline
-            strip = str.strip
+        if not animdata_file.exists():
+            raise errors.NotFoundError(path=str(animdata_file))
+        
+        if not animsetdata_file.exists():
+            raise errors.NotFoundError(path=str(animsetdata_file))
 
-            try:
+        try:
+            with open(animdata_file, "r", encoding="utf-8") as readable:
+                # bind repeated calls
+                readline = readable.readline
+                strip = str.strip
+
                 # initialize list to hold dictionaries before passing to dataframe
                 animdatalist = []                
                 
@@ -83,26 +87,25 @@ class Updater:
                 # initialize project index and name dictionary
                 p_dict = {}
 
-                # # debug flag
-                # found_my_creature = False
-
-            except Exception as e:
-                print(f"Error initializing animdata index: {e}")
-                restore_parquets(self.cache_dir)
-                return
-
-            try:
-                # get project count
-                total_projects = int(strip(readline()))
-                print(f"Expecting {total_projects} total projects.")
-                line_count += 1
-
-                # get project names
-                for i in range(total_projects):
-                    myName = strip(readline()).split(".")[0]
-                    p_dict[i] = myName
+                try:
+                    # get project count
+                    total_projects_raw = strip(readline())
+                    total_projects = int(total_projects_raw)
+                    logging.debug(f"Expecting {total_projects} total projects.")
                     line_count += 1
-                    
+                except ValueError as e:
+                    raise errors.ParseError(path=str(animdata_file), message=f"Invalid total projects count '{total_projects_raw}' at line {line_count}") from e
+
+                try:
+                    # get project names
+                    for i in range(total_projects):
+                        myName_raw = readline()
+                        myName = strip(myName_raw).split(".")[0]
+                        p_dict[i] = myName
+                        line_count += 1
+                except ValueError as e:
+                    raise errors.ParseError(path=str(animdata_file), message=f"Failed to parse project name: {myName_raw} at line {line_count}: {e}") from e
+
                 # typical read loop
                 for i in range(total_projects):
                     # Add new row for current project
@@ -115,17 +118,15 @@ class Updater:
                         "lines_boundanims": 0 # expected number of lines for bound anim data. 0 if nonexistent.
                         }
 
-                    # # debug check for test projects
-                    # project_name = p_dict[i].lower()
-                    # if project_name == "woodenbow".lower():
-                    #     found_my_creature = True
-                    #     os.system("pause")
-
                     # keep track of our line skips & reset at the beginning of the loop
                     lines_skipped = 0
 
-                    # read line, this is the number of lines to expect for this project
-                    expected_lines = int(strip(readline()))
+                    try:
+                        # read line, this is the number of lines to expect for this project
+                        expected_lines_raw = readline()
+                        expected_lines = int(strip(expected_lines_raw))
+                    except ValueError as e:
+                        raise errors.ParseError(path=str(animdata_file), message=f"Invalid expected lines count '{expected_lines_raw}' at line {line_count}") from e
 
                     new_row["lines_anims"] = expected_lines
                     line_count += 1
@@ -136,18 +137,27 @@ class Updater:
                     line_count += 1
                     lines_skipped += 1 
                     
-                    # the next line tells us how many hkx to expect
-                    hkx_count = int(strip(readline()))
-                    line_count += 1
-                    lines_skipped += 1
+                    try:
+                        # the next line tells us how many hkx to expect
+                        hkx_count_raw = readline()
+                        hkx_count = int(strip(hkx_count_raw))
+                        line_count += 1
+                        lines_skipped += 1
+                    except ValueError as e:
+                        raise errors.ParseError(path=str(animdata_file), message=f"Invalid HKX count '{hkx_count_raw!r}' at line {line_count}") from e
 
                     util.fast_skip(readable, hkx_count)
                     line_count += hkx_count
                     lines_skipped += hkx_count
 
-                    hasBoundAnims = int(strip(readline()))
-                    line_count += 1
-                    
+                    try:
+                        # read boundanims flag
+                        hasBoundAnims_raw = readline()
+                        hasBoundAnims = int(strip(hasBoundAnims_raw))
+                        line_count += 1
+                    except ValueError as e:
+                        raise errors.ParseError(path=str(animdata_file), message=f"Unexpected value for boundanims flag: {hasBoundAnims_raw} at line {line_count}: {e}") from e
+
                     # check for boundanims
                     if hasBoundAnims == 0:
                         new_row["project_type"]  = "noncreature"
@@ -155,19 +165,20 @@ class Updater:
                     elif hasBoundAnims == 1:
                         new_row["project_type"]  = "creature"
                     else:
-                        print("Error: unexpected value when checking for boundanims.")
-                        print("The value given was: {}".format(hasBoundAnims))
-                        restore_parquets(self.cache_dir)
-                        return
+                        raise errors.ParseError(path=str(animdata_file), message=f"Invalid boundanims flag '{hasBoundAnims_raw}' at line {line_count}")
                     
                     skip_animdata = expected_lines - lines_skipped
                     util.fast_skip(readable, skip_animdata)
                     line_count += skip_animdata
 
                     if hasBoundAnims == 1:
-                        # read number of lines expected for bound anims
-                        expected_lines = int(strip(readline()))
-                        line_count += 1 
+                        try:
+                            # read number of lines expected for bound anims
+                            expected_lines_raw = readline()
+                            expected_lines = int(strip(expected_lines_raw))
+                            line_count += 1
+                        except ValueError as e:
+                            raise errors.ParseError(path=str(animdata_file), message=f"Invalid boundanims line count '{expected_lines_raw}' at line {line_count}: {e}") from e
 
                         # record expected bound anim line count
                         new_row["lines_boundanims"] = expected_lines
@@ -182,27 +193,21 @@ class Updater:
                     # append new row to list of rows
                     animdatalist.append(new_row)
                     i += 1
+        except PermissionError as e:
+            raise PermissionError(f"Permission denied: {e}") from e
+          
+        # saving local variables, will commit to class variables later
+        for entry in animdatalist:
+            cached_projects.append(entry['project_name'])
+            if entry['project_type'] == "creature":
+                creature_projects.append(entry['project_name'])
 
-                if not self.dryrun:
-                    
-                    self.animdata_df = pd.DataFrame.from_records(animdatalist)
-                    
-                    # only save variables if we're not in dry run mode
-                    for entry in animdatalist:
-                        cached_projects.append(entry['project_name'])
-                        if entry['project_type'] == "creature":
-                            creature_projects.append(entry['project_name'])
-
-                    new_projects = [proj for proj in cached_projects if proj not in self.vanilla_projects]
+        new_projects = [proj for proj in cached_projects if proj not in self.vanilla_projects]
+        if self.dryrun:
+            # back up the old dataframe, restore it later
+            old_animdata_df = self.animdata_df
             
-            # note: we don't want to raise here, we can fix the cache later
-            except Exception as e:
-                print(f"Error at line {line_count} while updating animdata: {e}")
-                restore_parquets(self.cache_dir)
-                return None
-            
-        print("Updating animsetdata index...")
-
+        logging.debug("Updating animsetdata index...")
         # first we need to find how many projects have boundanims + root motion
         project_count = len(creature_projects)
 
@@ -210,19 +215,19 @@ class Updater:
         line_count = 0
 
         # open the animsetdata file
-        with open(self.skyrim_dir / animsetdata, "r", encoding="utf-8") as readable:
+        with open(animsetdata_file, "r", encoding="utf-8") as readable:
             # bind repeated calls
             readline = readable.readline
             strip = str.strip
-
-            print(f"Expecting {project_count} creature projects.")
-
             try:
-                # make sure we're expecting the right number of projects
-                if int(strip(readline())) != project_count:
-                    print("Error: Creature count mismatch!")
-                    restore_parquets(self.cache_dir)
-                    return None
+                logging.debug(f"Expecting {project_count} creature projects.")
+
+                try:
+                    project_count_raw = strip(readline())
+                    project_count = int(project_count_raw)
+
+                except ValueError as e:
+                    raise errors.ParseError(path=str(animsetdata_file), message=f"Invalid creature project count at line {line_count}") from e
 
                 line_count += 1
 
@@ -257,25 +262,37 @@ class Updater:
                         util.fast_skip(readable, 1)
                         line_count += 1
 
-                        # skip first set of notes (single line each)
-                        notes_A = int(strip(readline()))
-                        line_count += 1
+                        try:
+                            # skip first set of notes (single line each)
+                            notes_A_raw = readline()
+                            notes_A = int(strip(notes_A_raw))
+                            line_count += 1
+                        except ValueError as e:
+                            raise errors.ParseError(path=str(animsetdata_file), message=f"Invalid animationset notes count: {notes_A_raw} at line {line_count}: {e}") from e
 
                         if notes_A != 0:
                             util.fast_skip(readable, notes_A)
                             line_count += notes_A
                         
-                        # skip second set of notes (sets of 3)
-                        notes_B = int(strip(readline()))
-                        line_count += 1
+                        try:
+                            # skip second set of notes (sets of 3)
+                            notes_B_raw = readline()
+                            notes_B = int(strip(notes_B_raw))
+                            line_count += 1
+                        except ValueError as e:
+                            raise errors.ParseError(path=str(animsetdata_file), message=f"Invalid animation set notes count: {notes_B_raw} at line {line_count}: {e}") from e
 
                         if notes_B != 0:
                             util.fast_skip(readable, notes_B * 3) # notes B 3 lines
                             line_count += notes_B * 3
 
-                        # skip third set of notes (sets of 4)
-                        notes_C = int(strip(readline()))
-                        line_count += 1
+                        try:
+                            # skip third set of notes (sets of 4)
+                            notes_C_raw = readline()
+                            notes_C = int(strip(notes_C_raw))
+                            line_count += 1
+                        except ValueError as e:
+                            raise errors.ParseError(path=str(animsetdata_file), message=f"Invalid animation set notes count: {notes_C_raw} at line {line_count}: {e}") from e
 
                         # check for notes. each note is 4 lines.
                         if notes_C != 0:
@@ -284,16 +301,25 @@ class Updater:
                                 util.fast_skip(readable, 2)
                                 line_count += 2
 
-                                n = int(strip(readline()))
-                                line_count += 1
+                                try:
+                                    # read number of lines to skip
+                                    n_raw = readline()
+                                    n = int(strip(n_raw))
+                                    line_count += 1
+                                except ValueError as e:
+                                    raise errors.ParseError(path=str(animsetdata_file), message=f"Invalid animation set notes count: {n_raw} at line {line_count}: {e}") from e
 
                                 # skip 
                                 util.fast_skip(readable, n)
                                 line_count += n
 
-                        # this line is the number of animations (three line pairs) to expect
-                        file_count = int(strip(readline()))
-                        line_count +=1
+                        try:
+                            # this line is the number of animations (three line pairs) to expect
+                            file_count_raw = readline()
+                            file_count = int(strip(file_count_raw))
+                            line_count +=1
+                        except ValueError as e:
+                            raise errors.ParseError(path=str(animsetdata_file), message=f"Invalid animation set file count: {file_count_raw} at line {line_count}: {e}") from e
 
                         # skip three lines per animation file
                         # 2046540817 <- path to animations folder
@@ -306,53 +332,64 @@ class Updater:
                         if i == set_count - 1:
                             new_row["animset_end"] = line_count - 1
                             new_row["lines_animsets"] = (line_count) - new_row["animset_start"]
-                        
-                    animsetdatalist.append(new_row)
+                            
+                        animsetdatalist.append(new_row)
 
-                if not self.dryrun:
-                    self.animdata_df = pd.DataFrame.from_records(animdatalist)
-                    self.animsetdata_df = pd.DataFrame.from_records(animsetdatalist)
+            except (ValueError, IndexError, OSError) as e:
+                raise errors.CacheError(path=str(animsetdata_file), message=f"Error while updating animsetdata: {e}") from e
 
-                    self.cached_projects = cached_projects
-                    self.new_projects = new_projects
-                    self.creature_projects = creature_projects
+            if not self.dryrun:
+                self.animdata_df = pd.DataFrame.from_records(animdatalist)
+                self.animsetdata_df = pd.DataFrame.from_records(animsetdatalist)
 
-                    pq_dir = self.cache_dir / "cache"
+                self.cached_projects = cached_projects
+                self.new_projects = new_projects
+                self.creature_projects = creature_projects
 
-                    try: os.makedirs(pq_dir, exist_ok=True)
-                    except Exception as e:
-                        print(f"Error creating cache directory: {e}")
-                        restore_parquets(pq_dir)
-                        return
-                    
-                    if not os.path.exists(pq_dir):
-                        print("Error: Could not create cache directory.")
-                        restore_parquets(pq_dir)
-                        return
+                pq_dir = self.cache_dir / "cache"
 
-                    # create parquets
+                try: os.makedirs(pq_dir, exist_ok=True)
+                except (OSError, PermissionError) as e:
+                    raise errors.WriteError(path=str(pq_dir), message=f"Could not create parquet cache directory: {e}") from e
+
+                # backup old parquet files
+                backup_parquets(pq_dir)
+
+                # create parquets
+                try:
                     self.animdata_df.to_parquet(pq_dir / "animdata_cache.parquet.tmp")
+                except (OSError, PermissionError) as e:
+                    restore_parquets(pq_dir)
+                    raise errors.WriteError(path=str(pq_dir / "animdata_cache.parquet"), message="Failed to write Animation Data parquet") from e
+                
+                try:
                     self.animsetdata_df.to_parquet(pq_dir / "animsetdata_cache.parquet.tmp")
+                except (OSError, PermissionError) as e:
+                    restore_parquets(pq_dir)
+                    raise errors.WriteError(path=str(pq_dir / "animsetdata_cache.parquet"), message="Failed to write Animation Set Data parquet") from e
 
+                try:
                     # replace old parquets with new ones
                     os.replace(pq_dir / "animdata_cache.parquet.tmp", pq_dir / "animdata_cache.parquet")
                     os.replace(pq_dir / "animsetdata_cache.parquet.tmp", pq_dir / "animsetdata_cache.parquet")
+                except (OSError, PermissionError) as e:
+                    restore_parquets(pq_dir)
+                    raise errors.WriteError(path=str(pq_dir / "animdata_cache.parquet"), message="Failed to replace Animation Data parquet") from e
 
-                    # clean up backup files
-                    clean_parquet_backups(self.cache_dir / "cache")
-
-            except Exception as e:
-                restore_parquets(self.cache_dir)
-                raise Exception(f"Error while updating animsetdata: {e}")
+                # clean up backup files
+                clean_parquet_backups(self.cache_dir / "cache")
             
-        print("Update complete.")
+            else:
+                # restore old dataframe
+                self.animdata_df = old_animdata_df
+            
+        logging.info("Update complete.")
         return 0
     
 
 def load_dataframes(cache_dir):
-    if not os.path.exists(cache_dir / config.animdata_pq_path):
-        print("Error: Parquet cache not found. Please run update first.")
-        return None
+    if not Path(cache_dir / config.animdata_pq_path).exists() or not Path(cache_dir / config.animsetdata_pq_path).exists():
+        raise FileNotFoundError("No parquet to load!")
     
     animdata_df = pd.read_parquet(cache_dir / config.animdata_pq_path)
     animsetdata_df = pd.read_parquet(cache_dir / config.animsetdata_pq_path)
@@ -363,26 +400,45 @@ def backup_parquets(cache_dir):
     animsetdata_bak = None
 
 # backup old program cache files
-    if os.path.exists(cache_dir / config.animdata_pq_path):
-        animdata_bak = os.rename(cache_dir / config.animdata_pq_path, cache_dir / "animdata.parquet.bak")
-    if os.path.exists(cache_dir / config.animsetdata_pq_path):
-        animsetdata_bak = os.rename(cache_dir / config.animsetdata_pq_path, cache_dir / "animsetdata.parquet.bak")
+    if (cache_dir / config.animdata_pq_path).exists():
+        try:
+            animdata_bak = os.rename(cache_dir / config.animdata_pq_path, cache_dir / "animdata.parquet.bak")
+        except (OSError, PermissionError) as e:
+            raise errors.WriteError(path=str(cache_dir / "animdata.parquet"), message="Failed to backup Animation Data parquet") from e
+    if (cache_dir / config.animsetdata_pq_path).exists():
+        try:
+            animsetdata_bak = os.rename(cache_dir / config.animsetdata_pq_path, cache_dir / "animsetdata.parquet.bak")
+        except (OSError, PermissionError) as e:
+            raise errors.WriteError(path=str(cache_dir / "animsetdata.parquet"), message="Failed to backup Animation Set Data parquet") from e
     return animdata_bak, animsetdata_bak
 
 def restore_parquets(cache_dir):
     animdata_restored = None
     animsetdata_restored = None
     # restore old program cache files
-    if os.path.exists(cache_dir / "animdata.parquet.bak"):
-        animdata_restored = os.rename(cache_dir / "animdata.parquet.bak", cache_dir / "animdata.parquet")
-    if os.path.exists(cache_dir / "animsetdata.parquet.bak"):
-        animsetdata_restored = os.rename(cache_dir / "animsetdata.parquet.bak", cache_dir / "animsetdata.parquet")
+    if (cache_dir / "animdata.parquet.bak").exists():
+        try:
+            animdata_restored = os.rename(cache_dir / "animdata.parquet.bak", cache_dir / "animdata.parquet")
+        except (OSError, PermissionError) as e:
+            raise errors.WriteError(path=str(cache_dir / "animdata.parquet"), message="Failed to restore Animation Data parquet from backup") from e
+
+    if (cache_dir / "animsetdata.parquet.bak").exists():
+        try:
+            animsetdata_restored = os.rename(cache_dir / "animsetdata.parquet.bak", cache_dir / "animsetdata.parquet")
+        except (OSError, PermissionError) as e:
+            raise errors.WriteError(path=str(cache_dir / "animsetdata.parquet"), message="Failed to restore Animation Set Data parquet from backup") from e
     return animdata_restored, animsetdata_restored
 
 def clean_parquet_backups(cache_dir):
     # delete backup files
-    if os.path.exists(cache_dir / "animdata.parquet.bak"):
-        os.remove(cache_dir / "animdata.parquet.bak")
-    if os.path.exists(cache_dir / "animsetdata.parquet.bak"):
-        os.remove(cache_dir / "animsetdata.parquet.bak")
+    if (cache_dir / "animdata.parquet.bak").exists():
+        try:
+            os.remove(cache_dir / "animdata.parquet.bak")
+        except (OSError, PermissionError) as e:
+            raise errors.WriteError(path=str(cache_dir / "animdata.parquet.bak"), message="Failed to remove Animation Data parquet backup") from e
+    if (cache_dir / "animsetdata.parquet.bak").exists():
+        try:
+            os.remove(cache_dir / "animsetdata.parquet.bak")
+        except (OSError, PermissionError) as e:
+            raise errors.WriteError(path=str(cache_dir / "animsetdata.parquet.bak"), message="Failed to remove Animation Set Data parquet backup") from e
     return 0
