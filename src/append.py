@@ -40,7 +40,7 @@ def append_projects(project_list: list[str], yes_im_sure: bool = False):
 
 
     if ud.animdata_list is None or ud.animsetdata_list is None:
-        if not ud.update_cache():
+        if ud.update_cache() != 0:
             raise errors.CacheError(message="Unable to update cache, cannot append projects.")
         return 1
     

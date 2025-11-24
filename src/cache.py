@@ -136,8 +136,8 @@ def restore_vanilla_cache(yes_im_sure=False):
                               message_y="Restoring vanilla cache.",
                               message_n="Cancelling operation.") or yes_im_sure:
         unpack_vanilla_cache()
-        if not ud.update_cache():
-            raise errors.CacheError("Failed to update after restoring vanilla cache.")
+        if ud.update_cache() != 0:
+            raise errors.CacheError(message="Failed to update after restoring vanilla cache.")
 
         logging.info("Vanilla cache restored.")
         return
