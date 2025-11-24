@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import json
 import logging
+import sys
 
 
 # needs optimizing
@@ -87,3 +88,16 @@ def dump_json(data, cache: Path, dst: Path):
         return 0
     except (OSError, PermissionError) as e:
         raise OSError(f"Failed to write JSON file: {e}") from e
+    
+
+# Return absolute path to resource, works for dev and for PyInstaller
+def resource_path(rel_path: str) -> Path:
+    #if we're running in a PyInstaller bundle
+    if getattr(sys, "_MEIPASS", None):
+        # Get the base path from PyInstaller's temporary directory
+        base = Path(sys._MEIPASS)
+    else:
+        # Get the base path from the current working directory
+        base = Path(__file__).parent.parent
+    # Return the absolute path to the resource
+    return (base / rel_path).resolve()

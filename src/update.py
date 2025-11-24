@@ -5,9 +5,11 @@ import config, errors, util
 
 class Updater:
     def __init__(self):
+
         # ensure the vanilla project list exists before continuing
-        if not (Path("src") / "resources" / "vanilla_projects.txt").exists():
-            raise FileNotFoundError("Missing vanilla projects list. You may need to reinstall the program.")
+        vanilla_projects_path = util.resource_path(Path("src") / "resources" / "vanilla_projects.txt")
+        if not vanilla_projects_path.exists():
+            raise FileNotFoundError("Can't find the vanilla projects list. You may need to reinstall the program.")
 
         # instance-scoped state (avoid shared mutable defaults)
         self.vanilla_projects = []
