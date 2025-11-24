@@ -12,8 +12,8 @@ def extract_projects(listprojects: list[str], yes_im_sure: bool=False):
     # ensure cache is up to date
     ud.update_cache()
 
-    animdata_df = ud.animdata_df
-    animsetdata_df = ud.animsetdata_df
+    animdata_list = ud.animdata_list
+    animsetdata_list = ud.animsetdata_list
 
     meshes_dir = cfg.skyrim / "meshes"
     v_animdata = config.animdata
@@ -23,7 +23,7 @@ def extract_projects(listprojects: list[str], yes_im_sure: bool=False):
         project = project.lower()
 
         # check if project exists
-        if cache.is_in_cache(project) == False:
+        if not cache.is_in_cache(project.casefold()):
             logging.warning(f"Project {project} not found. Cancelling...")
             return 0
 
@@ -45,7 +45,11 @@ def extract_projects(listprojects: list[str], yes_im_sure: bool=False):
 
         if ud.creature_projects.__contains__(project):
             isCreature = True
-            animset_index = animsetdata_df.index[animsetdata_df['animset_name'] == project].to_list()[0]
+            animset_index = []
+            for i in range(len(animsetdata_list)):
+                if animsetdata_list[i]["animset_name"] == project:
+                    animset_index = i
+                    break
 
         ### ANIMATIONDATA ###
 
@@ -73,21 +77,31 @@ def extract_projects(listprojects: list[str], yes_im_sure: bool=False):
             readline = readable.readline
             strip = str.strip
 
-            # record project start line for debug purposes
-            debug_line = int(animdata_df.at[project_index, "project_start"])
+            try:
+                # record project start line for debug purposes
+                debug_line = int(animdata_list[project_index]["project_start"])
+            except (IndexError, ValueError) as e:
+                raise errors.CacheError(path=str(meshes_dir / v_animdata), message=f"Could not find project start line for {project} in local cache: {e}") from e
 
             # write the animdata cache file
             try:
                 with open((animdata_temp_folder / (project + ".txt")), 'w', encoding="utf-8") as animdata_cache:
 
-                    # read lines up to the project start
-                    util.fast_skip(readable, int(animdata_df.at[project_index, "project_start"]))
-
+                    try:
+                        # read lines up to the project start
+                        util.fast_skip(readable, int(animdata_list[project_index]["project_start"]))
+                    except (OSError, PermissionError) as e:
+                        raise errors.ReadError(path=str(meshes_dir / v_animdata), message=f"Could not read animdata file up to project {project} start line {debug_line}: {e}") from e
+                    except (IndexError, ValueError) as e:
+                        raise errors.CacheError(path=str(meshes_dir / v_animdata), message=f"Could not find project start line for {project} in local cache: {e}") from e
                     # skip line count
                     util.fast_skip(readable, 1)
                     debug_line += 1
 
-                    lines_anims = int(animdata_df.at[project_index, "lines_anims"])
+                    try:
+                        lines_anims = int(animdata_list[project_index]["lines_anims"])
+                    except (IndexError, ValueError) as e:
+                        raise errors.CacheError(path=str(meshes_dir / v_animdata), message=f"Could not find lines_anims for {project} in local cache: {e}") from e
 
                     n = 1
                     
@@ -123,7 +137,11 @@ def extract_projects(listprojects: list[str], yes_im_sure: bool=False):
                         util.fast_skip(readable, 2)
                         debug_line += 2
 
-                        lines_boundanims = int(animdata_df.at[project_index, "lines_boundanims"])
+                        try:
+                            lines_boundanims = int(animdata_list[project_index]["lines_boundanims"])
+
+                        except (IndexError, ValueError) as e:
+                            raise errors.CacheError(path=str(meshes_dir / v_animdata), message=f"Could not find lines_boundanims for {project} in local cache: {e}") from e
 
                         for i in range(lines_boundanims - 2):
                             boundanims_cache.write(readline())
@@ -145,17 +163,27 @@ def extract_projects(listprojects: list[str], yes_im_sure: bool=False):
                 readline = readable.readline
                 strip = str.strip
 
-                debug_line = int(animsetdata_df.at[animset_index, "animset_start"])
+                try:
+                    debug_line = int(animsetdata_list[animset_index]["animset_start"])
+                except (IndexError, ValueError) as e:
+                    raise errors.CacheError(path=str(meshes_dir / v_animsetdata), message=f"Could not find animation set data start line for {project} in local cache: {e}") from e
 
                 # write the animsetdata cache file
                 try:
+                    try:
                     # skip to the project start
-                    util.fast_skip(readable, int(animsetdata_df.at[animset_index, "animset_start"]))  # skip line count
-
+                        util.fast_skip(readable, int(animsetdata_list[animset_index]["animset_start"]))  # skip line count
+                    except (IndexError, ValueError) as e:
+                        raise errors.CacheError(path=str(meshes_dir / v_animsetdata), message=f"Could not find animation set data start line for {project} in local cache: {e}") from e
+                
                     # get the expected number of animation sets
                     animset_count = int(strip(readline()))
                     debug_line += 1
-                    expected_animset_count = int(animsetdata_df.at[animset_index, "count_animsets"])
+
+                    try:
+                        expected_animset_count = int(animsetdata_list[animset_index]["count_animsets"])
+                    except (IndexError, ValueError) as e:
+                        raise errors.CacheError(path=str(meshes_dir / v_animsetdata), message=f"Could not find animation set data count for {project} in local cache: {e}") from e
 
                     # check to make sure the cache data matches
                     if animset_count != expected_animset_count:
@@ -291,12 +319,11 @@ def extract_all(yes_im_sure: bool=False, and_i_mean_all_of_them: bool=False, dry
     ud = config.get_global('update')
 
     vanilla_projects_count = len(ud.vanilla_projects)
-    animdata_df = ud.animdata_df
-    animsetdata_df = ud.animsetdata_df
+    animdata_list = ud.animdata_list
+    animsetdata_list = ud.animsetdata_list
 
     # get count for total projects
-    total_projects = animdata_df.shape[0]                  
-
+    total_projects = len(animdata_list)                  
     # make sure we have modded projects to extract
     if total_projects - vanilla_projects_count == 0 and not and_i_mean_all_of_them:
         logging.warning("No modded projects found.")
@@ -310,10 +337,6 @@ def extract_all(yes_im_sure: bool=False, and_i_mean_all_of_them: bool=False, dry
                                                 message_y="Extracting all projects, including vanilla ones.",
                                                 message_n="Cancelling operation.")
 
-    # loop through all projects and check if they are vanilla or not
-    for project_name in (animdata_df)['project_name']:
-        project_name = project_name.lower()
-    
     to_extract = []
 
     match extract_everything:
@@ -332,6 +355,6 @@ def extract_all(yes_im_sure: bool=False, and_i_mean_all_of_them: bool=False, dry
                     raise errors.CacheError(path=str(cfg.cache), message="Failed to update cache before extracting all projects.")
             to_extract = ud.new_projects
 
-    extract_projects(to_extract)
+    extract_projects(to_extract, dryrun=dryrun, yes_im_sure=yes_im_sure)
 
     return 0

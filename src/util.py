@@ -2,7 +2,6 @@ from collections import deque
 from itertools import islice
 import os
 from pathlib import Path
-import pandas as pd
 import json
 import logging
 
@@ -57,12 +56,34 @@ def prompt_yes_no(message: str, message_y: str = None, message_n: str = None) ->
                     logging.info(message_n)
                 return False
 
-def dump_json(parquet: Path, dst: Path):   
-    datalist = pd.read_parquet(parquet).to_dict(orient='records')
+def dump_json(data, cache: Path, dst: Path):
+    # normalize to a plain list of records
+    # this means we can handle pandas DataFrames or other structures
+    if hasattr(data, "to_dict"):
+        try:
+            datalist = data.to_dict(orient='records')
+        except Exception:
+            # fall back to using the object directly if conversion fails
+            datalist = list(data)
+    else:
+        datalist = list(data)
 
-    os.makedirs(dst.parent, exist_ok=True)
+    try:
+        tmpdir = cache / "tmp"
+        os.makedirs(tmpdir, exist_ok=True)
+        tmpfile = tmpdir / dst.name
+        with open(tmpfile, 'w', encoding='utf-8') as jsonfile:
+            json.dump(datalist, jsonfile, indent=4, ensure_ascii=False)
 
-    with open(dst, 'w', encoding='utf-8') as jsonfile:
-        json.dump(datalist, jsonfile, indent=4)
-    
-    return 0
+        os.makedirs(dst.parent, exist_ok=True)
+        os.replace(str(tmpfile), str(dst))
+
+        # cleanup tmp dir if empty
+        try:
+            os.rmdir(tmpdir)
+        except OSError:
+            pass
+
+        return 0
+    except (OSError, PermissionError) as e:
+        raise OSError(f"Failed to write JSON file: {e}") from e

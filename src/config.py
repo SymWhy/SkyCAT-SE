@@ -12,8 +12,6 @@ animsetdata = Path("animationsetdatasinglefile.txt")
 
 animdata_dir = Path("meshes") / "animationdata"
 animsetdata_dir = Path("meshes") / "animationsetdata"
-animdata_pq_path = Path("cache") / "animdata_cache.parquet"
-animsetdata_pq_path = Path("cache") / "animsetdata_cache.parquet"
 
 parser = configparser.ConfigParser()
 

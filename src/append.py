@@ -32,24 +32,36 @@ def append_projects(project_list: list[str], yes_im_sure: bool = False):
             return 0
 
         # offer to back up the existing cache
-        if cfg.skyrim / "meshes" / config.animdata.exists() or cfg.skyrim / "meshes" / config.animsetdata.exists():
+        if (cfg.skyrim / "meshes" / config.animdata).exists() or (cfg.skyrim / "meshes" / config.animsetdata).exists():
             if util.prompt_yes_no("Would you like to back up the existing cache files?",
                                 message_y="Backing up cache files.",
                                 message_n="Skipping backup."):
                 system.save_backup(yes_im_sure=True)
 
 
-    if ud.animdata_df is None or ud.animsetdata_df is None:
+    if ud.animdata_list is None or ud.animsetdata_list is None:
         if not ud.update_cache():
             raise errors.CacheError(message="Unable to update cache, cannot append projects.")
         return 1
     
-    animdata_df = ud.animdata_df
-    animsetdata_df = ud.animsetdata_df
-    last_project_is_creature = cache.is_creature(animdata_df.iloc[-1]['project_name'])
+    animdata_list = ud.animdata_list
+    animsetdata_list = ud.animsetdata_list
 
-    count_projects = len(animdata_df) + len(project_list)
-    count_creatures = len(animsetdata_df)
+    # if not animdata_list:
+    #     last_project_is_creature = False
+    # else:
+    #     last = animdata_list[-1]
+    #     # handle dict-like row or plain string
+    #     project_name = last.get('project_name') if isinstance(last, dict) and 'project_name' in last else str(last)
+    #     last_project_is_creature = cache.is_creature(project_name)
+
+    try: 
+        last_project_is_creature = True if animdata_list[-1]["project_type"] == "creature" else False
+    except (IndexError, KeyError) as e:
+        raise errors.CacheError(message="Animation data cache is corrupted or empty, cannot append projects.") from e
+
+    count_projects = len(animdata_list) + len(project_list)
+    count_creatures = len(animsetdata_list)
     creatures_dict = cache.get_creature_projects(project_list)
     count_creatures += sum(1 for p in project_list if creatures_dict.get(p))
 
@@ -60,8 +72,8 @@ def append_projects(project_list: list[str], yes_im_sure: bool = False):
     # create temporary cache folder
     os.makedirs(cfg.cache / "temp", exist_ok=True)
 
-    temp_animdata = cfg.cache / "temp" / "animationdatasinglefile.txt.tmp"
-    temp_animsetdata = cfg.cache / "temp" / "animationsetdatasinglefile.txt.tmp"
+    temp_animdata = cfg.cache / "temp" / "animationdatasinglefile.txt"
+    temp_animsetdata = cfg.cache / "temp" / "animationsetdatasinglefile.txt"
 
     # //// COPYING OLD FILES ////
 
@@ -78,7 +90,7 @@ def append_projects(project_list: list[str], yes_im_sure: bool = False):
                 t_animdata.write(f"{count_projects}")
 
                 # copy existing project names
-                for _ in range(len(animdata_df)):
+                for _ in range(len(animdata_list)):
                     t_animdata.write("\n" + strip(readline()))
                 
                 # append each new project name NO NEWLINE
@@ -103,7 +115,7 @@ def append_projects(project_list: list[str], yes_im_sure: bool = False):
                         util.fast_skip(o_animsetdata)  # skip first line
 
                         # copy existing project names
-                        for _ in range(len(animsetdata_df)):
+                        for _ in range(len(animsetdata_list)):
                             t_animsetdata.write("\n" + strip(o_animsetdata.readline()))
                         
                         # append the new project names only if they are creatures
@@ -206,7 +218,7 @@ def append_projects(project_list: list[str], yes_im_sure: bool = False):
                     for _ in range(expected_file_count):
                         files_animsetdata.append(strip(readline()))
             except IOError as e:
-                raise errors.ReadError(path=str(proj_animsetdata), message=f"Error reading animsetdata for {project_name} at line {debug_line}: {e}") from e
+                raise errors.ReadError(path=str(proj_animsetdata), message=f"Error reading animsetdata for {project_name}: {e}") from e
 
             with open(temp_animsetdata, 'a', encoding="utf-8") as t_animsetdata:
                 try:
@@ -246,8 +258,6 @@ def append_projects(project_list: list[str], yes_im_sure: bool = False):
         else:
             last_project_is_creature = False
 
-        logging.info(f"Successfully appended {project_name}.")
-
     # //// POST PROCESSING ////
 
     # extra newline at the very end
@@ -260,6 +270,8 @@ def append_projects(project_list: list[str], yes_im_sure: bool = False):
     # validate tmp cache files
     if ud.update_cache(cfg.cache / "temp") != 0:
         raise errors.CacheError(message="Failed to validate new cache files. Cancelling...")
+
+    logging.info(f"Successfully appended {project_name}.")
 
     if not dryrun:
         # copy tmp cache files to real cache files

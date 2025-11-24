@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 from tkinter import filedialog
 import logging
+import shutil
 
 import sse_bsa
 
@@ -37,11 +38,12 @@ def sanitize_cache(yes_im_sure: bool = False):
         if not (cfg.skyrim / "Skyrim - Animations.bsa").exists():
             raise FileNotFoundError(str(cfg.skyrim / "Skyrim - Animations.bsa"))
 
-
-        if not util.prompt_yes_no("Animation cache appears to be missing. Unpack?",
+        if not util.prompt_yes_no(message="Animation cache appears to be missing. Unpack?",
                            message_y="Unpacking animation cache from BSA.",
-                           message_n="SkyCAT SE requires a working animation cache to function. Cancelling.") or not yes_im_sure:
-            raise errors.UserAbort()
+                           message_n="SkyCAT SE requires a working animation cache to function. Cancelling.") and not yes_im_sure:
+            raise errors.UserAbort(message="User cancelled the operation.")
+        
+        unpack_vanilla_cache()
 
     try:      
         os.makedirs(cfg.cache, exist_ok=True)
@@ -52,7 +54,7 @@ def sanitize_cache(yes_im_sure: bool = False):
 def is_in_cache(project_name: str):
     ud = config.get_global('update')
     
-    if project_name in ud.cached_projects:
+    if project_name.casefold() in ud.cached_projects:
         return True
     return False
 
@@ -80,8 +82,13 @@ def is_creature(project_name: str):
     cfg = config.get_global('config')
     ud = config.get_global('update')
 
-    animdata_df = ud.animdata_df
-    creaturelist = animdata_df[animdata_df['project_type'] == "creature"]['project_name'].tolist()
+    animdata_list = ud.animdata_list
+
+    creaturelist = []
+    for entry in animdata_list:
+        if entry['project_type'] == "creature":
+            creaturelist.append(entry['project_name'])
+
     if project_name in creaturelist:
         return True
     return False
@@ -152,11 +159,11 @@ def get_creature_projects(list_projects: list[str]):
         if (cfg.skyrim / "meshes" / "animationsetdata" / f"{project}data" / f"{project}.txt").exists():
             has_animsetdata = True 
 
-        if has_boundanims and not has_animsetdata or has_animsetdata and not has_boundanims:
+        if (has_boundanims and not has_animsetdata) or (has_animsetdata and not has_boundanims):
             # broken project, return error
             raise FileNotFoundError(f"{project} is missing files!")
 
-        project_dict[project] = has_boundanims and has_animsetdata
+        project_dict[project] = True if has_boundanims and has_animsetdata else False
         
     return project_dict
 
@@ -179,8 +186,26 @@ def count_mergeable_projects():
 
 def dump_cache():
     cfg = config.get_global('config')
+    ud = config.get_global('update')
     dump_dir = cfg.cache / "dump"
-    util.dump_json(cfg.cache / config.animdata_pq_path, dump_dir / f"animdata_cache_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json")
-    util.dump_json(cfg.cache / config.animsetdata_pq_path, dump_dir / f"animsetdata_cache_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json")
+    util.dump_json(ud.animdata_list, cfg.cache, dump_dir / f"animdata_cache_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json")
+    util.dump_json(ud.animsetdata_list, cfg.cache, dump_dir / f"animsetdata_cache_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json")
     logging.info("Dumped animdata and animsetdata to JSON.")
     return 0
+
+def copy_cache(dst_path: Path):
+    cfg = config.get_global('config')
+    
+    try:
+        os.makedirs(dst_path, exist_ok=True)
+    except (OSError, PermissionError) as e:
+        raise errors.WriteError(path=str(dst_path), message=f"Could not create destination directory: {e}") from e
+    
+    try:
+        shutil.copy2(cfg.skyrim / "meshes" / "animationdatasinglefile.txt", dst_path / "animationdatasinglefile.txt")
+        shutil.copy2(cfg.skyrim / "meshes" / "animationsetdatasinglefile.txt", dst_path / "animationsetdatasinglefile.txt")
+    except (OSError, PermissionError) as e:
+        raise errors.WriteError(path=str(dst_path), message=f"Could not copy cache files: {e}") from e
+    logging.info("Copied cache files to temp directory.")
+    return 0
+    

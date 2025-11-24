@@ -66,10 +66,6 @@ def build_parser():
   parser.add_argument("-dryrun",
                       action='store_true',
                       help="Run the program in dry run mode, where no actual changes are made to files.")
-  
-  parser.add_argument("-dumpjson",
-                      action='store_true',
-                      help="Dump the current cache data to a JSON file.")
   return parser
 
 def has_cli_actions(parsed_args) -> bool:
@@ -84,17 +80,13 @@ def has_cli_actions(parsed_args) -> bool:
         parsed_args.backup,
         parsed_args.restore,
         parsed_args.restorefromarchive,
-        parsed_args.debug,
-        parsed_args.dumpjson
+        parsed_args.debug
     ])
 
 
 def process_cli(args):
     ud = config.get_global('update')
     # Run actions requested via command-line arguments and exit.
-    if args.dumpjson:
-        cache.dump_cache()
-
     # Auto-update unless noupdate is specified
     if not args.noupdate:
         ud.update_cache()
@@ -192,11 +184,9 @@ def interactive_loop(args=None):
                 system.set_log_level(level)
                 logging.info(f"Log level set to {level}.")
 
-            case "dumpjson":
+            case "dumpjson" | "dumpjason":
                 cfg = config.get_global('config')
-                dump_dir = cfg.cache / "dump"
                 cache.dump_cache()
-                logging.info("Dumped animdata and animsetdata to JSON.")
 
 def main(argv=None): 
     
@@ -205,7 +195,7 @@ def main(argv=None):
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    dryrun = argv.dryrun if argv else False
+    dryrun = bool(getattr(args, 'dryrun', False))
 
     system.set_log_level()
 
@@ -220,7 +210,7 @@ def main(argv=None):
 
     # check for command-line args
     if has_cli_actions(args):
-        code = process_cli(args)
+        blah = process_cli(args)
         if not args.gui:
             return 0
         else: force_update = False # we have already updated via cli
