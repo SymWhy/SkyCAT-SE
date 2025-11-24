@@ -62,6 +62,18 @@ class Configurator:
         except IOError as e:
             raise errors.ConfigError(message=f"Could not write config: {e}") from e
         return 0
+    
+def move_data(new_dir: Path = None):
+    # Change the data directory
+    cfg = get_global('config')
+
+    if new_dir == None:
+        new_dir = filedialog.askdirectory(title="Select Skyrim SE Data folder.", mustexist=True)
+        
+    try:
+        cfg.write_to_config('PATHS', 'sPathSSE', str(new_dir))
+    except (OSError, PermissionError) as e:
+        raise errors.ConfigError(message=f"Failed to write to config: {e}") from e
 
 # GLOBALS
 _GLOBAL_CONFIG = None

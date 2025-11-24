@@ -1,6 +1,7 @@
 import logging
 import sys
 import argparse
+from pathlib import Path
 
 import config, cache, errors, system, update, util
 
@@ -49,6 +50,15 @@ def build_parser():
                       help="Launch the full program.",
                       action='store_true')
   
+  # addon commands
+  parser.add_argument("-cd",
+                      help="Change the data directory.",
+                      action='store',
+                      nargs='?',
+                      const='',
+                      default=None,
+                      metavar='PATH')
+  
   # debug helpers
   parser.add_argument("-yesimsure",
                       action='store_true',
@@ -71,6 +81,7 @@ def has_cli_actions(parsed_args) -> bool:
     # check if any meaningful command-line arguments were provided.
     # only consider arguments that trigger actions
     return any([
+        getattr(parsed_args, 'cd', None) is not None,
         parsed_args.update,
         parsed_args.extract,
         parsed_args.extractall,
@@ -89,6 +100,15 @@ def process_cli(args):
     # Auto-update unless noupdate is specified
     if not args.noupdate:
         ud.update_cache()
+
+    # Check if we want to change our data directory
+    if args.cd is not None:
+        if args.cd == "":
+            # user passed "-cd" with no path -> open interactive chooser
+            config.move_data()
+        else:
+            # user passed "-cd <path>"
+            config.move_data(Path(args.cd))
 
     # process gui first, even if other actions are requested
     if args.gui:
@@ -186,6 +206,13 @@ def interactive_loop(args=None):
             case "dumpjson" | "dumpjason":
                 cfg = config.get_global('config')
                 cache.dump_cache()
+
+            case "changedir" | "changedirectory":
+                if inp.startswith("changedir ") or inp.startswith("changedirectory "):
+                    path = inp.split(" ", 1)[1]
+                    config.move_data(Path(path))
+                else:
+                    config.move_data()
 
 def main(argv=None): 
     
