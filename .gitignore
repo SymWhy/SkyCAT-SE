@@ -1,9 +1,11 @@
+.conda/
+.github/
 .vscode/
-meshes/
-build/
-dst/
-cache/
+myenv/
 backups/
+build/
+cache/
+dist/
 exe-goes-here.txt
 pyinstaller.txt
 __pycache__/
