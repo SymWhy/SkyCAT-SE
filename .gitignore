@@ -3,6 +3,7 @@ meshes/
 build/
 dst/
 cache/
+backups/
 exe-goes-here.txt
 pyinstaller.txt
 __pycache__/
