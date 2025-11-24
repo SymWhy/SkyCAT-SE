@@ -34,6 +34,10 @@ def build_parser():
                       help='Append one or more projects to the animation cache.\n'
                       'For example: "-append catproject snakeproject"')
   
+  parser.add_argument("-appendall",
+                      action='store_true',
+                      help='Append all available modded projects to the animation cache.')
+
   parser.add_argument("-backup",
                       help="Create a backup of the current animation cache.",
                       action='store_true')
@@ -86,6 +90,7 @@ def has_cli_actions(parsed_args) -> bool:
         parsed_args.extract,
         parsed_args.extractall,
         parsed_args.append,
+        parsed_args.appendall,
         parsed_args.gui,
         parsed_args.backup,
         parsed_args.restore,
@@ -140,6 +145,10 @@ def process_cli(args):
     if args.append:
         append.append_projects(project_list=args.append, yes_im_sure=args.yesimsure)
         pass
+
+    if args.appendall:
+        append.append_all_available(yes_im_sure=args.yesimsure, dryrun=config.get_global('dryrun'))
+
     return 0
 
 # only runs this when you open the application
@@ -157,6 +166,7 @@ def interactive_loop(args=None):
                       "  extract [projects]     - Extract one or more projects from the animation cache.\n",
                       "  extractall             - Extract all non-vanilla projects from the animation cache.\n",
                       "  append [projects]      - Append one or more projects to the animation cache.\n",
+                      "  appendall              - Append all available projects to the animation cache.\n",
                       "  backup                 - Create a backup of the current animation cache.\n",
                       "  restore                - Restore the animation cache from the latest backup.\n",
                       "  restorefromarchive     - Restore the vanilla animation cache from the program archive.\n",
@@ -182,6 +192,10 @@ def interactive_loop(args=None):
                 logging.info("Appending projects...")
                 project = inp.split(" ", 1)[1].split(" ") 
                 append.append_projects(project_list=project)
+
+            case "appendall":
+                logging.info("Appending all available projects...")
+                append.append_all_available(yes_im_sure=args.yesimsure if args else False, dryrun=config.get_global('dryrun'))
 
             case "backup":
                 logging.info("Creating cache backup...")

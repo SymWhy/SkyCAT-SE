@@ -5,10 +5,13 @@ from shutil import copy2
 
 import config, cache, errors, system, util
 
-def append_projects(project_list: list[str], yes_im_sure: bool = False):
+def append_projects(project_list: list[str], yes_im_sure: bool = False, dryrun: bool = False):
     cfg = config.get_global('config')
     ud = config.get_global('update')
-    dryrun = config.get_global('dryrun')
+
+    if project_list == []:
+        logging.info("No projects were appended.")
+        return 0
 
     # ensure cache is up to date
     if ud.update_cache() != 0:
@@ -257,6 +260,7 @@ def append_projects(project_list: list[str], yes_im_sure: bool = False):
                             raise errors.WriteError(path=str(entry_file), message=f"Error appending animsetdata for {project_name} at line {debug_line}: {e}") from e
         else:
             last_project_is_creature = False
+        print(f"Successfully appended {project_name}.")
 
     # //// POST PROCESSING ////
 
@@ -270,8 +274,6 @@ def append_projects(project_list: list[str], yes_im_sure: bool = False):
     # validate tmp cache files
     if ud.update_cache(cfg.cache / "temp") != 0:
         raise errors.CacheError(message="Failed to validate new cache files. Cancelling...")
-
-    logging.info(f"Successfully appended {project_name}.")
 
     if not dryrun:
         # copy tmp cache files to real cache files
@@ -289,3 +291,23 @@ def append_projects(project_list: list[str], yes_im_sure: bool = False):
         raise OSError("Failed to clean temporary files.")
 
     return 0
+
+
+def append_all_available(yes_im_sure: bool = False, dryrun: bool = False):
+    cfg = config.get_global('config')
+
+    # get all available projects
+    animdata_dir = cfg.skyrim / "meshes" / "animationdata"
+    project_list = []
+
+    try:
+        for file in os.listdir(animdata_dir):
+            if file.endswith(".txt") and not file.startswith("anims_") and not file == "dirlist.txt":
+                project_name = file[:-4]  # remove .txt extension
+                if cache.can_be_merged(project_name): # make sure the file is mergable
+                    project_list.append(project_name)
+                else:
+                    logging.warning(f"{project_name} cannot be merged, skipping.")
+    except OSError as e:
+        raise errors.CacheError(path=str(animdata_dir), message=f"Failed to get projects from the animation data directory: {e}") from e
+    return append_projects(project_list, yes_im_sure=yes_im_sure, dryrun=dryrun)

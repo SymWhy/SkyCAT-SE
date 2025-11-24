@@ -97,7 +97,6 @@ def is_creature(project_name: str):
 def can_be_merged(project_name: str):
     # check if project is in cache
     if is_in_cache(project_name) == True:
-        print(f"Warning: {project_name} must be unique.")
         return False
     
     unpacked = is_unpacked(project_name)
