@@ -168,7 +168,7 @@ def interactive_loop(args=None):
             case _ if inp.startswith("extract "):
                 logging.info("Extracting projects...")
                 project_list = inp.split(" ", 1)[1].split(" ")                  
-                extract.extract_projects(listprojects=project_list)
+                extract.extract_projects(listprojects=project_list, dryrun=config.get_global('dryrun'))
 
             case "extractall":
                 if args and args.ireallymeanit:
@@ -207,8 +207,8 @@ def interactive_loop(args=None):
                 cfg = config.get_global('config')
                 cache.dump_cache()
 
-            case "changedir" | "changedirectory":
-                if inp.startswith("changedir ") or inp.startswith("changedirectory "):
+            case "changedir" | "cd":
+                if inp.startswith("changedir ") or inp.startswith("cd "):
                     path = inp.split(" ", 1)[1]
                     config.move_data(Path(path))
                 else:

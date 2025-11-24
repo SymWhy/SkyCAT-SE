@@ -4,7 +4,7 @@ import logging
 
 import config, cache, errors, system, util
 
-def extract_projects(listprojects: list[str], yes_im_sure: bool=False):
+def extract_projects(listprojects: list[str], dryrun: bool=False, yes_im_sure: bool=False):
     cfg = config.get_global('config')
     ud = config.get_global('update')
     dryrun = config.get_global('dryrun')
