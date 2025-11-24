@@ -1,11 +1,10 @@
 import logging
 import sys
-import os
 import argparse
 
-import config, cache, errors, system, update, util
+import config, cache, errors, system, update
 
-import extract, append, validate
+import extract, append
 
 
 def build_parser():

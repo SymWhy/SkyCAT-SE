@@ -1,7 +1,7 @@
 from pathlib import Path
 import logging
 
-import config, cache, errors, util
+import config, errors, util
 
 class Updater:
     def __init__(self):

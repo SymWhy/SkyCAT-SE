@@ -1,5 +1,4 @@
 # src/errors.py
-from __future__ import annotations
 from dataclasses import dataclass
 
 # Base class for SkyCAT-SE errors
