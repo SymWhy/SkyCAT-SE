@@ -1,9 +1,10 @@
 .vscode/
 meshes/
-builds/
+build/
+dst/
 cache/
-src/resources/animationsetdatasinglefile.txt
-/src/__pycache__
-src/resources/animationdatasinglefile.txt
-src/resources/dirlist.txt
-src/blah.py
+exe-goes-here.txt
+pyinstaller.txt
+__pycache__/
+skycat.ini
+skycat.spec
