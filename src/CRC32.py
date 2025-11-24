@@ -2,7 +2,6 @@
 # This code was adapted to Python from Pentalimbed's Haviour tool.
 # Written with the assistance of AI.
 
-# Small CRC32 lookup table; avoid requiring numpy for a tiny fixed-size table
 
 def mirror_bit(val, num):
 
@@ -19,7 +18,6 @@ def mirror_bit(val, num):
 
 class CRC32:
 
-    # Use a plain Python list for the 256-entry lookup table to avoid numpy dependency
     table = [0] * 256
 
     @staticmethod
