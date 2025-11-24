@@ -18,7 +18,7 @@ def sanitize_cache(yes_im_sure: bool = False):
     # make sure temp folder is empty
     system.clean_temp()
 
-    vanilla_projects_path = util.resource_path(Path("src") / "resources" / "vanilla_projects.txt")
+    vanilla_projects_path = util.resource_path(Path("resources") / "vanilla_projects.txt")
     # make sure all our resource files are available
     if not vanilla_projects_path.exists():
         raise FileNotFoundError("Failed to find vanilla_projects.txt")

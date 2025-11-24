@@ -7,7 +7,7 @@ class Updater:
     def __init__(self):
 
         # ensure the vanilla project list exists before continuing
-        vanilla_projects_path = util.resource_path(Path("src") / "resources" / "vanilla_projects.txt")
+        vanilla_projects_path = util.resource_path(Path("resources") / "vanilla_projects.txt")
         if not vanilla_projects_path.exists():
             raise FileNotFoundError("Can't find the vanilla projects list. You may need to reinstall the program.")
 
@@ -42,8 +42,9 @@ class Updater:
         creature_projects = []
         
         # make sure we have our vanilla project list loaded
+        vanilla_projects_path = util.resource_path(Path("resources") / "vanilla_projects.txt")
         if self.vanilla_projects == []:
-            with open(Path("src") / "resources" / "vanilla_projects.txt", "r", encoding="utf-8") as vanilla_dirlist:
+            with open(vanilla_projects_path, "r", encoding="utf-8") as vanilla_dirlist:
                 try:
                     # get all our vanilla project names
                     for line in vanilla_dirlist:

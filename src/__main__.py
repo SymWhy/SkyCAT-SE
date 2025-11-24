@@ -2,7 +2,7 @@ import logging
 import sys
 import argparse
 
-import config, cache, errors, system, update
+import config, cache, errors, system, update, util
 
 import extract, append
 
@@ -221,6 +221,8 @@ def main(argv=None):
     
     # no command-line args, or args.gui = True, run interactive loop
     interactive_loop()
+
+    util.pause_wait_for_input()
     return 0
 
 if __name__ == "__main__":
