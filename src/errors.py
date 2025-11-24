@@ -52,6 +52,8 @@ class WriteError(SkycatError):
 
 # User cancelled operation.
 class UserAbort(SkycatError):
+    message: str
+    
     def __str__(self) -> str:
         return self.message or "Operation cancelled by user."
     

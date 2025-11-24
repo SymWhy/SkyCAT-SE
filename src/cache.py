@@ -42,7 +42,7 @@ def sanitize_cache(yes_im_sure: bool = False):
         if not util.prompt_yes_no(message="Animation cache appears to be missing. Unpack?",
                            message_y="Unpacking animation cache from BSA.",
                            message_n="SkyCAT SE requires a working animation cache to function. Cancelling.") and not yes_im_sure:
-            raise errors.UserAbort(message="User cancelled the operation.")
+            raise errors.UserAbort(message="Operation cancelled by user.")
         
         unpack_vanilla_cache()
 

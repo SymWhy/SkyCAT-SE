@@ -265,4 +265,20 @@ def main(argv=None):
     return 0
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except KeyboardInterrupt:
+        # allow user to cancel without a traceback
+        raise
+    except Exception:
+        # Print full traceback so the user can see what went wrong
+        import traceback
+
+        traceback.print_exc()
+        # Pause so double-click users can read the error
+        try:
+            input("\nPress Enter to exit...")
+        except Exception:
+            # ignore any issues with input
+            pass
+        raise
