@@ -10,94 +10,92 @@ import extract, append
 
 def build_parser():
   
-  parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser()
 
-  parser.add_argument("-update",
-                      action='store_true',
-                      help="Sync the program with your existing animation cache.")
+    parser.add_argument("-update",
+                        action='store_true',
+                        help="Sync the program with your existing animation cache.")
 
-  parser.add_argument("-extract",
-                      nargs='+',
-                      help='extract one or more projects from the animation cache.\n'
-                      'For example: "-extract catproject snakeproject"')
+    parser.add_argument("-extract",
+                        nargs='+',
+                        help='extract one or more projects from the animation cache.\n'
+                        'For example: "-extract catproject snakeproject"')
 
-  parser.add_argument("-extractall",
-                      action='store_true',
-                      help='extract all non-vanilla projects from the animation cache.\n'
-                      'Use "-ireallymeanit" to also extract vanilla projects.\n'
-                      '(Use at your own risk.)')
-  parser.add_argument("-ireallymeanit",
-                      action='store_true')
+    parser.add_argument("-extractall",
+                        action='store_true',
+                        help='extract all non-vanilla projects from the animation cache.\n'
+                        'Use "-ireallymeanit" to also extract vanilla projects.\n'
+                        '(Use at your own risk.)')
+    parser.add_argument("-ireallymeanit",
+                        action='store_true')
 
-  parser.add_argument("-append",
-                      nargs='+',
-                      help='Append one or more projects to the animation cache.\n'
-                      'For example: "-append catproject snakeproject"')
-  
-  parser.add_argument("-appendall",
-                      action='store_true',
-                      help='Append all available modded projects to the animation cache.')
+    parser.add_argument("-append",
+                                            nargs='+',
+                                            help='Append one or more loose projects into the cache.\n'
+                                            'For example: "-append catproject snakeproject"')
 
-  parser.add_argument("-backup",
-                      help="Create a backup of the current animation cache.",
-                      action='store_true')
-  
-  parser.add_argument("-restore",
-                      help="Restore the animation cache from the latest backup.",
-                      action='store_true')
-  
-  parser.add_argument("-restorefromarchive",
-                      help="Restore the vanilla animation cache from the program archive.",
-                      action='store_true')
-  
-  parser.add_argument("-gui",
-                      help="Launch the full program.",
-                      action='store_true')
-  
-  # addon commands
-  parser.add_argument("-cd",
-                      help="Change the data directory.",
-                      action='store',
-                      nargs='?',
-                      const='',
-                      default=None,
-                      metavar='PATH')
-  
-  # debug helpers
-  parser.add_argument("-yesimsure",
-                      action='store_true',
+    parser.add_argument("-appendall",
+                                            action='store_true',
+                                            help='Append all available mergeable projects to the cache.')
+
+    parser.add_argument("-backup",
+                        help="Create a backup of the current animation cache.",
+                        action='store_true')
+
+    parser.add_argument("-restore",
+                        help="Restore the animation cache from the latest backup.",
+                        action='store_true')
+
+    parser.add_argument("-restorefromarchive",
+                        help="Restore the vanilla animation cache from the program archive.",
+                        action='store_true')
+
+    parser.add_argument("-gui",
+                        help="Launch the full program.",
+                        action='store_true')
+
+    # addon commands
+    parser.add_argument("-cd",
+                        help="Change the data directory.",
+                        action='store',
+                        nargs='?',
+                        const='',
+                        default=None,
+                        metavar='PATH')
+
+    # debug helpers
+    parser.add_argument("-yesimsure",
+                        action='store_true',
                         help="Automatically skip confirmation prompts. Not recommended!")
-  
-  parser.add_argument("-noupdate",
-                      action='store_true',
-                      help="Skip updating the program. Note: This might break stuff, only use if you know what you're doing.")
-  
-  parser.add_argument("-debug",
-                      action='store_true',
-                      help=argparse.SUPPRESS)
-  
-  parser.add_argument("-dryrun",
-                      action='store_true',
-                      help="Run the program in dry run mode, where no actual changes are made to files.")
-  return parser
+
+    parser.add_argument("-noupdate",
+                        action='store_true',
+                        help="Skip updating the program. Note: This might break stuff, only use if you know what you're doing.")
+
+    parser.add_argument("-debug",
+                        action='store_true',
+                        help=argparse.SUPPRESS)
+
+    parser.add_argument("-dryrun",
+                        action='store_true',
+                        help="Run the program in dry run mode, where no actual changes are made to files.")
+    return parser
 
 def has_cli_actions(parsed_args) -> bool:
     # check if any meaningful command-line arguments were provided.
     # only consider arguments that trigger actions
     return any([
         getattr(parsed_args, 'cd', None) is not None,
-        parsed_args.update,
-        parsed_args.extract,
-        parsed_args.extractall,
-        parsed_args.append,
-        parsed_args.appendall,
-        parsed_args.gui,
-        parsed_args.backup,
-        parsed_args.restore,
-        parsed_args.restorefromarchive,
-        parsed_args.debug
+        bool(getattr(parsed_args, 'update', False)),
+        bool(getattr(parsed_args, 'extract', None)),
+        bool(getattr(parsed_args, 'extractall', False)),
+        bool(getattr(parsed_args, 'append', None)),
+        bool(getattr(parsed_args, 'gui', False)),
+        bool(getattr(parsed_args, 'backup', False)),
+        bool(getattr(parsed_args, 'restore', False)),
+        bool(getattr(parsed_args, 'restorefromarchive', False)),
+        bool(getattr(parsed_args, 'debug', False))
     ])
-
 
 def process_cli(args):
     ud = config.get_global('update')
@@ -233,7 +231,10 @@ def main(argv=None):
     # detect whether the user invoked the program with command-line flags
     argv = argv if argv is not None else sys.argv[1:]
     parser = build_parser()
-    args = parser.parse_args(argv)
+    # Use parse_known_args to handle MO2 injected args
+    args, unknown_args = parser.parse_known_args(argv)
+    if unknown_args:
+        logging.debug(f"Ignoring unknown CLI args: {unknown_args}")
 
     dryrun = bool(getattr(args, 'dryrun', False))
 
@@ -268,19 +269,70 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except KeyboardInterrupt:
-        # allow user to cancel without a traceback
         raise
-    except errors.UserAbort as e:
-        print(f"Setup cancelled, no changes were made.")
+    except SystemExit as se:
+        # argparse can raise SystemExit on parse errors or help; log non-zero codes
+        if se.code is not None and se.code != 0:
+            try:
+                import traceback
+                import tempfile
+                from datetime import datetime
+                import os
+                ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+                log_name = f"skycat_sysexit_{ts}.log"
+                log_path = Path(tempfile.gettempdir()) / log_name
+                with open(log_path, 'w', encoding='utf-8') as lf:
+                    lf.write('Timestamp: ' + ts + '\n')
+                    lf.write('CWD: ' + str(Path.cwd()) + '\n')
+                    lf.write('argv: ' + ' '.join(sys.argv) + '\n')
+                    try:
+                        lf.write('PYTHONPATH: ' + os.environ.get('PYTHONPATH', '') + '\n')
+                    except Exception:
+                        pass
+                    lf.write('\n')
+                    lf.write(f"SystemExit code: {se.code}\n")
+                print(f"SystemExit with code {se.code} logged to: {log_path}")
+            except Exception:
+                pass
+            try:
+                if sys.stdin and sys.stdin.isatty():
+                    input("\nPress Enter to exit...")
+            except Exception:
+                pass
+        raise
+    except errors.UserAbort:
+        print("Setup cancelled, no changes were made.")
         raise SystemExit(0)
     except Exception:
         # Print full traceback so the user can see what went wrong
         import traceback
 
         traceback.print_exc()
+        # Also write the traceback and basic environment info to a log file
+        try:
+            import tempfile
+            from datetime import datetime
+            import os
+            ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+            log_name = f"skycat_error_{ts}.log"
+            log_path = Path(tempfile.gettempdir()) / log_name
+            with open(log_path, 'w', encoding='utf-8') as lf:
+                lf.write('Timestamp: ' + ts + '\n')
+                lf.write('CWD: ' + str(Path.cwd()) + '\n')
+                lf.write('argv: ' + ' '.join(sys.argv) + '\n')
+                try:
+                    lf.write('PYTHONPATH: ' + os.environ.get('PYTHONPATH', '') + '\n')
+                except Exception:
+                    pass
+                lf.write('\n')
+                lf.write(traceback.format_exc())
+            print(f"Full traceback written to: {log_path}")
+        except Exception:
+            pass
         # Pause so double-click users can read the error
         try:
-            input("\nPress Enter to exit...")
+            if sys.stdin and sys.stdin.isatty():
+                input("\nPress Enter to exit...")
         except Exception:
             # ignore any issues with input
             pass

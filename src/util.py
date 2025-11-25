@@ -45,17 +45,50 @@ def fast_skip(fileobj, n: int=1):
     deque(islice(fileobj, n), maxlen=0)
 
 def prompt_yes_no(message: str, message_y: str = None, message_n: str = None) -> bool:
-    print(f"{message} Y/N")
-    while True:
-        match input().lower():
-            case 'y':
-                if message_y:
-                    logging.info(message_y)
-                return True
-            case 'n':
-                if message_n:
-                    logging.info(message_n)
-                return False
+    # Prefer console prompt when available.
+    try:
+        if sys.stdin is not None and sys.stdin.isatty():
+            print(f"{message} Y/N")
+            while True:
+                try:
+                    resp = input().strip().lower()
+                except (EOFError, RuntimeError):
+                    # lost stdin while waiting for input; fall through to GUI fallback
+                    break
+                if resp == 'y':
+                    if message_y:
+                        logging.info(message_y)
+                    return True
+                if resp == 'n':
+                    if message_n:
+                        logging.info(message_n)
+                    return False
+    except Exception:
+        # If checking stdin fails, fall back to GUI or abort below
+        pass
+
+    # No console available (or stdin lost). Try a GUI dialog if tkinter is present.
+    try:
+        from tkinter import messagebox, Tk
+        root = Tk()
+        root.withdraw()
+        res = messagebox.askyesno(title="SkyCAT-SE", message=message)
+        try:
+            root.destroy()
+        except Exception:
+            pass
+        if res:
+            if message_y:
+                logging.info(message_y)
+            return True
+        else:
+            if message_n:
+                logging.info(message_n)
+            return False
+    except Exception:
+        # Neither console nor GUI prompts are available; raise a user abort so
+        # callers can decide how to proceed.
+        raise RuntimeError("No stdin available and GUI dialogs not available to prompt the user.")
 
 def dump_json(data, cache: Path, dst: Path):
     # normalize to a plain list of records

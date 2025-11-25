@@ -32,9 +32,15 @@ class Configurator:
         # askdirectory returns an empty string; treat that as a user abort and
         # do not write an empty config file.
         skyrim_path = filedialog.askdirectory(title="Select Skyrim SE Data folder.", mustexist=True)
-        if not skyrim_path:
-            # Propagate a user-cancelled state to the caller
+        if not skyrim_path or skyrim_path == "":
             raise errors.UserAbort(message="Operation cancelled by user.")
+
+        # Require both cache files to exist either in the selected Skyrim Data folder
+        # or in the application's local 'meshes' folder.
+        s_mesh = Path(skyrim_path) / 'meshes'
+        local_mesh = Path('meshes')
+        if not ((s_mesh / 'animationdatasinglefile.txt').exists() and (s_mesh / 'animationsetdatasinglefile.txt').exists()) and not ((local_mesh / 'animationdatasinglefile.txt').exists() and (local_mesh / 'animationsetdatasinglefile.txt').exists()):
+            raise FileNotFoundError("Selected directory does not appear to contain a valid animation cache.")
 
         cfgparser['PATHS'] = {
             'sPathSSE': str(skyrim_path),
@@ -44,6 +50,7 @@ class Configurator:
 
         with open('skycat.ini', 'w', encoding="utf-8") as configfile:
             cfgparser.write(configfile)
+        return skyrim_path
 
         
     def load_config(self, cfgparser=parser):

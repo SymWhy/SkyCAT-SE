@@ -23,23 +23,15 @@ def sanitize_cache(yes_im_sure: bool = False):
     if not vanilla_projects_path.exists():
         raise FileNotFoundError("Failed to find vanilla_projects.txt")
 
-    # prompt the user to navigate to the Skyrim SE directory if configured path
-    # does not exist. (Fix previous double-negative logic.)
     if not cfg.skyrim.exists():
-        # Ask the user for the Skyrim SE Data folder. If they cancel, askdirectory
-        # returns an empty string; treat that as a user abort.
-        new_path = filedialog.askdirectory(title="Select Skyrim SE Data folder.", mustexist=True)
-        if not new_path or new_path == "":
-            raise errors.UserAbort(message="Operation cancelled by user.")
+        cfg.setup_config()        
 
-        # Verify the selected directory contains the expected cache files.
-        if not (Path(new_path) / 'meshes' / 'animationdatasinglefile.txt').exists() or not (Path(new_path) / 'meshes' / 'animationsetdatasinglefile.txt').exists():
-            raise FileNotFoundError("Selected directory does not appear to contain a valid animation cache.")
-
-        try:
-            cfg.write_to_config('PATHS', 'sPathSSE', str(new_path))
-        except (OSError, PermissionError) as e:
-            raise errors.ConfigError(message=f"Failed to write to config: {e}") from e
+    bsa_path = Path(cfg.skyrim) / "Skyrim - Animations.bsa"
+    meshes_dir = Path(cfg.skyrim) / "meshes"
+    logging.info("cfg.skyrim -> %s", cfg.skyrim)
+    logging.info("BSA exists -> %s", bsa_path.exists())
+    logging.info("meshes exists -> %s", meshes_dir.exists())
+    logging.info("animationdatasinglefile exists -> %s", (meshes_dir / "animationdatasinglefile.txt").exists())
 
     # make sure the animation cache is unpacked from the bsa.
     if not (cfg.skyrim / "meshes" / "animationdatasinglefile.txt").exists() or not (cfg.skyrim / "meshes" / "animationsetdatasinglefile.txt").exists():
@@ -131,8 +123,9 @@ def unpack_vanilla_cache():
     cfg = config.get_global('config')
     try:
         anims_archive = sse_bsa.BSAArchive(Path(cfg.skyrim / "Skyrim - Animations.bsa"))
-        anims_archive.extract_file(Path("meshes") / "animationdatasinglefile.txt", Path(cfg.skyrim))
-        anims_archive.extract_file(Path("meshes") / "animationsetdatasinglefile.txt", Path(cfg.skyrim))
+        # Use POSIX-style internal paths when extracting from the BSA archive.
+        anims_archive.extract_file("meshes/animationdatasinglefile.txt", Path(cfg.skyrim))
+        anims_archive.extract_file("meshes/animationsetdatasinglefile.txt", Path(cfg.skyrim))
     except (OSError, RuntimeError) as e:
         raise errors.CacheError(path=str(cfg.skyrim), message=f"Failed to unpack vanilla cache: {e}") from e
     return 0
