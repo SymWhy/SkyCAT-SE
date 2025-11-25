@@ -72,9 +72,11 @@ def build_parser():
                       action='store_true',
                       help="Skip updating the program. Note: This might break stuff, only use if you know what you're doing.")
   
-  parser.add_argument("-debug",
-                      action='store_true',
-                      help=argparse.SUPPRESS)
+  parser.add_argument("-level",
+                      nargs='?',
+                      help="Set the logging level (e.g., DEBUG, INFO, WARNING, ERROR).",
+                      action='store',
+                      default="INFO")
   
   parser.add_argument("-dryrun",
                       action='store_true',
@@ -94,17 +96,16 @@ def has_cli_actions(parsed_args) -> bool:
         parsed_args.gui,
         parsed_args.backup,
         parsed_args.restore,
-        parsed_args.restorefromarchive,
-        parsed_args.debug
+        parsed_args.restorefromarchive
     ])
 
 
 def process_cli(args):
     ud = config.get_global('update')
     # Run actions requested via command-line arguments and exit.
-    # Auto-update unless noupdate is specified
-    if not args.noupdate:
-        ud.update_cache()
+
+    # Set logging level
+    system.set_log_level(args.level)
 
     # Check if we want to change our data directory
     if args.cd is not None:
@@ -119,6 +120,10 @@ def process_cli(args):
     if args.gui:
         # its not really a gui yet but i'll get there
         interactive_loop()
+        return 0
+    # Auto-update unless noupdate is specified
+    if not args.noupdate:
+        ud.update_cache()
 
     if args.backup:
         system.save_backup()
@@ -156,13 +161,14 @@ def process_cli(args):
 def interactive_loop(args=None):    
     ud = config.get_global('update')
 
-    print("Entering interactive mode. Type 'help' for a list of commands.")
     while True:
+        print("Entering interactive mode. Type 'help' for a list of commands.")
         inp = input('> ').strip().lower()
         match inp:
             case "help":
                 print("Available commands:\n",
                       "  update                 - Update the program to the current cache.\n",
+                      "  changedir | cd         - Change the data directory read by the program.\n",
                       "  extract [projects]     - Extract one or more projects from the animation cache.\n",
                       "  extractall             - Extract all non-vanilla projects from the animation cache.\n",
                       "  append [projects]      - Append one or more projects to the animation cache.\n",
@@ -170,7 +176,8 @@ def interactive_loop(args=None):
                       "  backup                 - Create a backup of the current animation cache.\n",
                       "  restore                - Restore the animation cache from the latest backup.\n",
                       "  restorefromarchive     - Restore the vanilla animation cache from the program archive.\n",
-                      "  dumpjson               - Dump the current animation cache data to a JSON file.\n")
+                      "  dumpjson               - Dump the current animation cache data to a JSON file.\n",
+                      "  level [LEVEL]         - Set the logging level (e.g., DEBUG, INFO, WARNING, ERROR).\n",)
 
             case "update":
                 ud.update_cache()
@@ -209,10 +216,8 @@ def interactive_loop(args=None):
                 logging.info("Restoring vanilla cache from archive...")
                 cache.restore_vanilla_cache()
 
-            case "quit":
-                return 0
-            
-            case "logging ":
+
+            case _ if inp.startswith("level "):
                 level = inp.split(" ", 1)[1].upper()
                 system.set_log_level(level)
                 logging.info(f"Log level set to {level}.")
@@ -227,6 +232,9 @@ def interactive_loop(args=None):
                     config.move_data(Path(path))
                 else:
                     config.move_data()
+
+            case "quit":
+                return 0
 
 def main(argv=None): 
     
@@ -250,10 +258,11 @@ def main(argv=None):
 
     # check for command-line args
     if has_cli_actions(args):
-        blah = process_cli(args)
+        process_cli(args)
         if not args.gui:
             return 0
-        else: force_update = False # we have already updated via cli
+        if args.noupdate:
+            force_update = False
 
     if force_update:
         # auto-update on launch
