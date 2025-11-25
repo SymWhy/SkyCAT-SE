@@ -23,10 +23,19 @@ def sanitize_cache(yes_im_sure: bool = False):
     if not vanilla_projects_path.exists():
         raise FileNotFoundError("Failed to find vanilla_projects.txt")
 
-    # prompt the user to navigate to the Skyrim SE directory
+    # prompt the user to navigate to the Skyrim SE directory if configured path
+    # does not exist. (Fix previous double-negative logic.)
     if not cfg.skyrim.exists():
+        # Ask the user for the Skyrim SE Data folder. If they cancel, askdirectory
+        # returns an empty string; treat that as a user abort.
         new_path = filedialog.askdirectory(title="Select Skyrim SE Data folder.", mustexist=True)
-        
+        if not new_path or new_path == "":
+            raise errors.UserAbort(message="Operation cancelled by user.")
+
+        # Verify the selected directory contains the expected cache files.
+        if not (Path(new_path) / 'meshes' / 'animationdatasinglefile.txt').exists() or not (Path(new_path) / 'meshes' / 'animationsetdatasinglefile.txt').exists():
+            raise FileNotFoundError("Selected directory does not appear to contain a valid animation cache.")
+
         try:
             cfg.write_to_config('PATHS', 'sPathSSE', str(new_path))
         except (OSError, PermissionError) as e:

@@ -270,6 +270,9 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         # allow user to cancel without a traceback
         raise
+    except errors.UserAbort as e:
+        print(f"Setup cancelled, no changes were made.")
+        raise SystemExit(0)
     except Exception:
         # Print full traceback so the user can see what went wrong
         import traceback

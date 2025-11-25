@@ -28,9 +28,20 @@ class Configurator:
     backups = Path.cwd() / 'backups'
 
     def setup_config(self, cfgparser=parser):
-        cfgparser['PATHS'] = {'sPathSSE': str(filedialog.askdirectory(title="Select Skyrim SE Data folder.", mustexist=True)),
-                          'sPathCache': str(Path.home() / 'AppData' / 'Local' / 'SkyCAT-SE'),
-                          'sPathBackups': str(Path.cwd() / 'backups')}
+        # Ask the user for the Skyrim SE Data folder. If the dialog is cancelled
+        # askdirectory returns an empty string; treat that as a user abort and
+        # do not write an empty config file.
+        skyrim_path = filedialog.askdirectory(title="Select Skyrim SE Data folder.", mustexist=True)
+        if not skyrim_path:
+            # Propagate a user-cancelled state to the caller
+            raise errors.UserAbort(message="Operation cancelled by user.")
+
+        cfgparser['PATHS'] = {
+            'sPathSSE': str(skyrim_path),
+            'sPathCache': str(Path.home() / 'AppData' / 'Local' / 'SkyCAT-SE'),
+            'sPathBackups': str(Path.cwd() / 'backups')
+        }
+
         with open('skycat.ini', 'w', encoding="utf-8") as configfile:
             cfgparser.write(configfile)
 
@@ -52,8 +63,11 @@ class Configurator:
         if not Path('skycat.ini').exists():
             self.setup_config(cfgparser)
             self.load_config(cfgparser)
-            
-        cfgparser[section][key] = value
+
+        if value is not None:
+            cfgparser[section][key] = value
+        else:
+            raise errors.ConfigError(message="No value provided to write to config.")
 
         try:
             with open('skycat.ini', 'w', encoding="utf-8") as configfile:
@@ -69,6 +83,8 @@ def move_data(new_dir: Path = None):
 
     if new_dir == None:
         new_dir = filedialog.askdirectory(title="Select Skyrim SE Data folder.", mustexist=True)
+        if not new_dir:
+            raise errors.UserAbort(message="Operation cancelled by user.")
         
     try:
         cfg.write_to_config('PATHS', 'sPathSSE', str(new_dir))
