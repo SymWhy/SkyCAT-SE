@@ -1,4 +1,4 @@
-# SkyCAT SE - Skyrim SE Cache Assembly Tool 0.0.1a
+# SkyCAT SE - Skyrim SE Cache Assembly Tool 0.1.0-alpha.1
 Small app to patch custom Havok creature projects.
 
 ## Currently in pre-alpha
