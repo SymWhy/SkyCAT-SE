@@ -139,6 +139,12 @@ def clean_temp():
         logging.info("No temporary files to clean.")
     return 0
 
-def set_log_level(level: str = "INFO"):
+def set_log_level(level: int | str = "INFO"):
+    try:
+        if int(level):
+            level = int(level)
+    except ValueError:
+        # dont worry about it ;)
+        pass
     logging.getLogger().setLevel(level)
     return 0
