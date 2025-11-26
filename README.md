@@ -1,15 +1,16 @@
 # SkyCAT SE - Skyrim SE Cache Assembly Tool 0.1.0-alpha.1
 Small app to patch custom Havok creature projects.
 
-## Currently in pre-alpha
-All available commands work in-game currently, with some limitations (see Limitations).
+## Currently in pre-release
+All available commands work in-game currently, with some limitations (see Limitations). Expect some instability and frequent patching.
 
 ## What is SkyCAT?
+<p align="center"><img src="https://github.com/SymWhy/SkyCAT-SE/blob/master/resources/images/dovahcat_logo.png" alt="A brown tabby wearing the Skyrim iron helmet." width="400"/></p>
 
-The Skyrim SE Cache Assembly Tool is a program meant to read and modify the Havok animation cache in Skyrim SE.
-
-SkyCAT SE was created as a way to simplify the patching process for having multiple custom creature mods at once. Skyrim's animation cache consists of two very long txt files containing root motion and annotations that are necessary to make the animations, sounds, attacks, etc play correctly. One of the issues with creating custom Havok projects is that each mod will have its own version of these files, overwriting each other so only the most recent cache is read. This prevents the animation cache data for any other custom Havok creature from being read, and will break those overwritten projects.
-
+The Skyrim SE Cache Assembly Tool is a program meant to read and modify the Havok animation cache in Skyrim SE.\
+\
+SkyCAT SE was created as a way to simplify the patching process for having multiple custom creature mods at once. Skyrim's animation cache consists of two very long txt files containing root motion and annotations that are necessary to make the animations, sounds, attacks, etc play correctly. One of the issues with creating custom Havok projects is that each mod will have its own version of these files, overwriting each other so only the most recent cache is read. This prevents the animation cache data for any other custom Havok creature from being read, and will break those overwritten projects.\
+\
 SkyCAT remedies this by building a new cache from the base game cache files, and appending the animation data from any other project it finds, so all animation data is readable by the game.
 
 ## Patching Conflicting Mods
@@ -61,7 +62,8 @@ Extract the contents of the build folder to your modding tools directory.
 Python: >=3.10
 
 ### How to install
-Run: `python -m pip install -r requirements.txt` (include `sse_bsa`, `lz4`, `virtual_glob`)
+Run: `python -m pip install -r requirements.txt`\
+(include `sse_bsa`, `lz4`, `virtual_glob`)
 
 ### Running from CLI
 Run: `python -m src.__main__ -(arguments)`
@@ -75,28 +77,31 @@ Example build string:\
   `--console ^`\
   `--icon=resources\\icon\\dovahcat.ico ^`\
   `--paths=src^`\
-  `--add-data "resources;resources"` ^\
-  `src\\__main\__.py`
+  `--add-data "resources;resources"^`\
+  `src\\__main__.py`
 
 ## Commands
 
 | Argument | CLI Argument | Description | Example |
 |-------------|-----------|--------------|----------|
 | update | `-update` | Updates SkyCAT SE to your current cache. Runs automatically. | `skycat -update` |
-| changedir | `-changedir` | Changes the working Data directory. Path optional.| `skycat -changedir "C:\...path to Skyrim Special Edition\Data\meshes"` |
+| changedir, cd | `-cd` | Changes the working Data directory. Path optional.| `skycat -changedir "C:\...path to Skyrim Special Edition\Data\meshes"` |
 | extract | `-extract` | Extract one or more projects by name from the cache. Add `-remove` to delete from the cache after unpacking. | `skycat -extract catproject` |
 | extractall | `-extractall` | Extract all non-vanilla projects. Add `-ireallymeanit` to include vanilla ones (not recommended). | `skycat -extractall` |
 | append (project) | `-append` | Append one or more loose projects into the cache. | `skycat -append catproject` |
-| backup | `-backup` | Back up your current cache files. | `skycat -backup` |
+| appendall | `-appendall` | Append all available, mergeable projects to the cache. | `skycat -appendall` |
+| backup | `-backup` | Back up your current cache files. (By default stored in the SkyCAT root directory.)| `skycat -backup` |
 | restore | `-restore` | Restore your cache files from backup. | `skycat -restore` |
 | restorefromarchive | `-restorefromarchive` | Revert cache files to vanilla. | `skycat -restorefromarchive` |
+| dumpjson | `-dumpjson` | Dump JSON file to APPDATA. | `skycat -dumpjson` |
+| level [level] | `-level` | Change logging level (e.g., DEBUG, INFO, WARNING, ERROR). | `skycat -level [LEVEL]` |
 | help | `-help` | Lists all commands and their descriptions. | `skycat -help` |
 
 ## Limitations:
-* SkyCAT may overwrite your cache files and individual files. Always run `skycat -backup` before modifying your cache.
+* SkyCAT may overwrite your cache files and individual files. __Always run `skycat -backup` before modifying your cache.__
 * Each project must have a unique name.
 * Backup function is still very WIP, only one slot is available right now.
 * SkyCAT performs some basic checks to make sure your cache is in the expected format. It is still possible for a broken cache to pass if it fits that format. Please make sure your singlefile cache is up-to-date and working before running this program.
-* The loose cache files that ship with the game are outdated and may be incorrect. I strongly recommend you not use them for custom creatures. Instead copy the projects from the singlefiles directly, either by hand or with this program.
+* The loose project files that ship with the game are outdated and may be incorrect. I strongly recommend you not use them for custom creatures. Instead copy the projects from the singlefiles directly, either by hand or with this program.
 * Currently SkyCAT is cmd based and can't be run through Mod Organizer.
 * Windows only at this time.
