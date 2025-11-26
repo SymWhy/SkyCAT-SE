@@ -52,10 +52,9 @@ class WriteError(SkycatError):
 
 # User cancelled operation.
 class UserAbort(SkycatError):
-    message: str
     
     def __str__(self) -> str:
-        return self.message or "Operation cancelled by user."
+        return "Operation cancelled by user."
     
 # User does something weird and not allowed.
 class InvalidOperation(SkycatError):

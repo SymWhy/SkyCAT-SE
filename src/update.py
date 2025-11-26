@@ -1,7 +1,7 @@
 from pathlib import Path
 import logging
 
-import config, errors, util
+import config, cache, errors, util
 
 class Updater:
     def __init__(self):
@@ -28,7 +28,9 @@ class Updater:
     def update_cache(self, meshes_folder: Path = None):
         
         cfg = config.get_global('config')
+
         self.dryrun = config.get_global('dryrun')
+        self.yes_im_sure = config.get_global('yesimsure')
 
         # allows us to use a custom meshes folder for testing
         if meshes_folder is None:
@@ -60,12 +62,8 @@ class Updater:
         animdata_file = meshes_folder / config.animdata
         animsetdata_file = meshes_folder / config.animsetdata
 
-        if not animdata_file.exists():
-            raise FileNotFoundError(f"Missing animation data file: {animdata_file}")
+        util.check_valid_directory(cfg.skyrim)
         
-        if not animsetdata_file.exists():
-            raise FileNotFoundError(f"Missing animation set data file: {animsetdata_file}")
-
         try:
             with open(animdata_file, "r", encoding="utf-8") as readable:
                 # bind repeated calls

@@ -4,10 +4,11 @@ import logging
 
 import config, cache, errors, system, util
 
-def extract_projects(listprojects: list[str], dryrun: bool=False, yes_im_sure: bool=False):
+def extract_projects(listprojects: list[str]):
     cfg = config.get_global('config')
     ud = config.get_global('update')
     dryrun = config.get_global('dryrun')
+    yes_im_sure = config.get_global('yesimsure')
 
     # ensure cache is up to date
     ud.update_cache()
@@ -34,7 +35,13 @@ def extract_projects(listprojects: list[str], dryrun: bool=False, yes_im_sure: b
             if not util.prompt_yes_no(f"Warning: Project {project} already has extracted files. Overwrite?",
                                             message_y=f"Overwriting existing files for project {project}.",
                                             message_n=f"Skipping extraction for project {project}."):
-                continue
+                # if only one project, exit to main menu
+                if len(listprojects) == 1:
+                    logging.info("No projects extracted.")
+                    return 0
+                else:
+                    logging.info(f"Skipping extraction for project {project}.")
+                    continue
             
             
 
@@ -314,9 +321,12 @@ def extract_projects(listprojects: list[str], dryrun: bool=False, yes_im_sure: b
     return 0
 
 
-def extract_all(yes_im_sure: bool=False, and_i_mean_all_of_them: bool=False, dryrun: bool=False):
+def extract_all(and_i_mean_all_of_them: bool=False):
     cfg = config.get_global('config')
     ud = config.get_global('update')
+
+    dryrun = config.get_global('dryrun')
+    yes_im_sure = config.get_global('yesimsure')
 
     vanilla_projects_count = len(ud.vanilla_projects)
     animdata_list = ud.animdata_list
@@ -355,6 +365,6 @@ def extract_all(yes_im_sure: bool=False, and_i_mean_all_of_them: bool=False, dry
                     raise errors.CacheError(path=str(cfg.cache), message="Failed to update cache before extracting all projects.")
             to_extract = ud.new_projects
 
-    extract_projects(to_extract, dryrun=dryrun, yes_im_sure=yes_im_sure)
+    extract_projects(to_extract)
 
     return 0

@@ -6,6 +6,10 @@ import json
 import logging
 import sys
 
+import sse_bsa
+
+import errors
+
 
 # needs optimizing
 def count_lines_and_strip(file: Path):
@@ -101,3 +105,38 @@ def resource_path(rel_path: str) -> Path:
         base = Path(__file__).parent.parent
     # Return the absolute path to the resource
     return (base / rel_path).resolve()
+
+def unpack_vanilla_cache(path):
+    try:
+        anims_archive = sse_bsa.BSAArchive(Path(path / "Skyrim - Animations.bsa"))
+        anims_archive.extract_file(Path("meshes") / "animationdatasinglefile.txt", Path(path))
+        anims_archive.extract_file(Path("meshes") / "animationsetdatasinglefile.txt", Path(path))
+    except (OSError, RuntimeError) as e:
+        raise errors.CacheError(path=str(path), message=f"Failed to unpack vanilla cache: {e}") from e
+    return 0
+
+# check if a directory contains the files needed
+def check_valid_directory(path: Path | str) -> bool:
+    # check for cache files
+    path = Path(path)
+    if (path / "meshes" / "animationdatasinglefile.txt").exists() and (path / "meshes" / "animationsetdatasinglefile.txt").exists():
+        return True
+
+    # check for BSA
+    elif (path / "Skyrim - Animations.bsa").exists():
+
+        if not prompt_yes_no("Animation cache appears to be missing. Unpack?",
+                      message_y="Unpacking animation cache from BSA.",
+                      message_n="Program cannot operate without the animation cache."):
+            raise errors.UserAbort()
+        # unpack BSA
+        unpack_vanilla_cache(path)
+        # check for cache files again
+        if (path / "meshes" / "animationdatasinglefile.txt").exists() and (path / "meshes" / "animationsetdatasinglefile.txt").exists():
+            return True
+        else:
+            raise errors.CacheError("Failed to unpack animation cache from BSA.")
+    else:
+        return False
+
+    

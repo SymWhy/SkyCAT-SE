@@ -5,9 +5,11 @@ from shutil import copy2
 
 import config, cache, errors, system, util
 
-def append_projects(project_list: list[str], yes_im_sure: bool = False, dryrun: bool = False):
+def append_projects(project_list: list[str], dryrun: bool = False):
     cfg = config.get_global('config')
     ud = config.get_global('update')
+
+    yes_im_sure = config.get_global('yesimsure')
 
     if project_list == []:
         logging.info("No projects were appended.")
@@ -39,7 +41,7 @@ def append_projects(project_list: list[str], yes_im_sure: bool = False, dryrun: 
             if util.prompt_yes_no("Would you like to back up the existing cache files?",
                                 message_y="Backing up cache files.",
                                 message_n="Skipping backup."):
-                system.save_backup(yes_im_sure=True)
+                system.save_backup()
 
 
     if ud.animdata_list is None or ud.animsetdata_list is None:
@@ -293,8 +295,10 @@ def append_projects(project_list: list[str], yes_im_sure: bool = False, dryrun: 
     return 0
 
 
-def append_all_available(yes_im_sure: bool = False, dryrun: bool = False):
+def append_all_available():
     cfg = config.get_global('config')
+    dryrun = config.get_global('dryrun')
+    yes_im_sure = config.get_global('yesimsure')
 
     # get all available projects
     animdata_dir = cfg.skyrim / "meshes" / "animationdata"
@@ -310,4 +314,4 @@ def append_all_available(yes_im_sure: bool = False, dryrun: bool = False):
                     logging.warning(f"{project_name} cannot be merged, skipping.")
     except OSError as e:
         raise errors.CacheError(path=str(animdata_dir), message=f"Failed to get projects from the animation data directory: {e}") from e
-    return append_projects(project_list, yes_im_sure=yes_im_sure, dryrun=dryrun)
+    return append_projects(project_list)

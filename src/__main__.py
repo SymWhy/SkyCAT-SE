@@ -111,10 +111,10 @@ def process_cli(args):
     if args.cd is not None:
         if args.cd == "":
             # user passed "-cd" with no path -> open interactive chooser
-            config.move_data()
+            config.change_data_dir()
         else:
             # user passed "-cd <path>"
-            config.move_data(Path(args.cd))
+            config.change_data_dir(Path(args.cd))
 
     # process gui first, even if other actions are requested
     if args.gui:
@@ -129,7 +129,7 @@ def process_cli(args):
         system.save_backup()
 
     if args.restorefromarchive:
-        cache.restore_vanilla_cache(yes_im_sure=args.yesimsure)
+        cache.restore_vanilla_cache()
 
     if args.restore:
         system.load_backup()
@@ -139,26 +139,26 @@ def process_cli(args):
 
     if args.extract:
         # extract may be a list of project names
-        extract.extract_projects(yes_im_sure=args.yesimsure, listprojects=args.extract)
+        extract.extract_projects(listprojects=args.extract)
 
     if args.extractall:
         if args.ireallymeanit:
-            extract.extract_all(yes_im_sure=args.yesimsure, and_i_mean_all_of_them=True)
+            extract.extract_all(and_i_mean_all_of_them=True)
         else:
-            extract.extract_all(yes_im_sure=args.yesimsure)
+            extract.extract_all()
 
     if args.append:
-        append.append_projects(project_list=args.append, yes_im_sure=args.yesimsure)
+        append.append_projects(project_list=args.append)
         pass
 
     if args.appendall:
-        append.append_all_available(yes_im_sure=args.yesimsure, dryrun=config.get_global('dryrun'))
-
+        append.append_all_available()
     return 0
 
 # only runs this when you open the application
 # commands can also be accessed from the command line
-def interactive_loop(args=None):    
+def interactive_loop(args=None):
+
     ud = config.get_global('update')
 
     while True:
@@ -183,55 +183,86 @@ def interactive_loop(args=None):
                 ud.update_cache()
 
             case _ if inp.startswith("extract "):
-                logging.info("Extracting projects...")
-                project_list = inp.split(" ", 1)[1].split(" ")                  
-                extract.extract_projects(listprojects=project_list, dryrun=config.get_global('dryrun'))
+                try:
+                    logging.info("Extracting projects...")
+                    project_list = inp.split(" ", 1)[1].split(" ")
+                    extract.extract_projects(listprojects=project_list)
+                except Exception:
+                    logging.exception(f"Extraction cancelled.")
 
             case "extractall":
-                if args and args.ireallymeanit:
-                    logging.info("Extracting all projects, including vanilla...")
-                    extract.extract_all(yes_im_sure=args.yesimsure, and_i_mean_all_of_them=True, dryrun=config.get_global('dryrun'))
-                else:
-                    logging.info("Extracting all non-vanilla projects...")
-                    extract.extract_all(yes_im_sure=args.yesimsure if args else False, dryrun=config.get_global('dryrun'))
+                try:
+                    if args and args.ireallymeanit:
+                        logging.info("Extracting all projects, including vanilla...")
+                        extract.extract_all(and_i_mean_all_of_them=True)
+                    else:
+                        logging.info("Extracting all non-vanilla projects...")
+                        extract.extract_all()
+                except Exception:
+                    logging.exception(f"Extraction cancelled.")
 
             case _ if inp.startswith("append "):
-                logging.info("Appending projects...")
-                project = inp.split(" ", 1)[1].split(" ") 
-                append.append_projects(project_list=project)
+                try:
+                    logging.info("Appending projects...")
+                    project = inp.split(" ", 1)[1].split(" ") 
+                    append.append_projects(project_list=project)
+                except Exception:
+                    logging.exception(f"Append cancelled.")
 
             case "appendall":
-                logging.info("Appending all available projects...")
-                append.append_all_available(yes_im_sure=args.yesimsure if args else False, dryrun=config.get_global('dryrun'))
+                try:
+                    logging.info("Appending all available projects...")
+                    append.append_all_available()
+                except Exception:
+                    logging.exception(f"Append cancelled.")
 
             case "backup":
-                logging.info("Creating cache backup...")
-                system.save_backup()
+                try:
+                    logging.info("Creating cache backup...")
+                    system.save_backup()
+                except Exception:
+                    logging.exception(f"Failed to backup cache.")
 
             case "restore":
-                logging.info("Restoring cache backup...")
-                system.load_backup()
+                try:
+                    logging.info("Restoring cache backup...")
+                    system.load_backup()
+                except Exception:
+                    logging.exception(f"Failed to restore saved cache.")
 
             case "restorefromarchive":
-                logging.info("Restoring vanilla cache from archive...")
-                cache.restore_vanilla_cache()
-
+                try:
+                    logging.info("Restoring vanilla cache from archive...")
+                    cache.restore_vanilla_cache()
+                except Exception:
+                    logging.exception(f"Failed to restore vanilla cache.")
 
             case _ if inp.startswith("level "):
-                level = inp.split(" ", 1)[1].upper()
-                system.set_log_level(level)
-                logging.info(f"Log level set to {level}.")
+                try:
+                    level = inp.split(" ", 1)[1].upper()
+                    system.set_log_level(level)
+                    logging.info(f"Log level set to {level}.")
+                except Exception:
+                    logging.exception(f"Failed to set log level.")
 
             case "dumpjson" | "dumpjason":
-                cfg = config.get_global('config')
-                cache.dump_cache()
+                try:
+                    logging.info("Dumping cache to JSON...")
+                    cfg = config.get_global('config')
+                    cache.dump_cache()
+                except Exception:
+                    logging.exception(f"Failed to dump cache to JSON.")
 
             case "changedir" | "cd":
-                if inp.startswith("changedir ") or inp.startswith("cd "):
-                    path = inp.split(" ", 1)[1]
-                    config.move_data(Path(path))
-                else:
-                    config.move_data()
+                try:
+                    logging.info("Changing data directory...")
+                    if inp.startswith("changedir ") or inp.startswith("cd "):
+                        path = inp.split(" ", 1)[1]
+                        config.change_data_dir(Path(path))
+                    else:
+                        config.change_data_dir()
+                except Exception:
+                    logging.exception(f"Failed to change data directory.")
 
             case "quit":
                 return 0
@@ -244,14 +275,15 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     dryrun = bool(getattr(args, 'dryrun', False))
+    yes_im_sure = bool(getattr(args, 'yesimsure', False))
 
     system.set_log_level()
 
-    if not config.set_globals(config.Configurator(), update.Updater(), dryrun=dryrun) == 0:
+    if not config.set_globals(config.Configurator(), update.Updater(), dryrun=dryrun, yes_im_sure=yes_im_sure) == 0:
         raise errors.ConfigError()
     
     # make sure the cache is valid
-    if not cache.sanitize_cache(args.yesimsure):
+    if not cache.sanitize_cache():
         raise errors.CacheError(message="Failed to sanitize cache.")
 
     force_update = True

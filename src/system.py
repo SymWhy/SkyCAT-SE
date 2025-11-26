@@ -5,8 +5,10 @@ import logging
 
 import config, errors, util
 
-def save_backup(yes_im_sure: bool = False, prefix="backup_"):
+def save_backup(prefix="backup_"):
     cfg = config.get_global('config')
+
+    yes_im_sure = config.get_global('yesimsure')
     
     try:
         os.makedirs(cfg.backups, exist_ok=True)
@@ -32,9 +34,11 @@ def save_backup(yes_im_sure: bool = False, prefix="backup_"):
     logging.info("Creating backup...")
     copy_backups(animdata_src, animsetdata_src, animdata_dst, animsetdata_dst)
 
-def load_backup(yes_im_sure: bool = False):
+def load_backup():
     cfg = config.get_global('config')
     ud = config.get_global('update')
+
+    yes_im_sure = config.get_global('yesimsure')
 
     backups_path = Path(cfg.backups)
 

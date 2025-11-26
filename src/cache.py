@@ -5,15 +5,15 @@ from tkinter import filedialog
 import logging
 import shutil
 
-import sse_bsa
-
 import config, errors, system, util
 
-def sanitize_cache(yes_im_sure: bool = False):
+def sanitize_cache():
 
     import config
 
     cfg = config.get_global('config')
+
+    yes_im_sure = config.get_global('yesimsure')
 
     # make sure temp folder is empty
     system.clean_temp()
@@ -25,35 +25,8 @@ def sanitize_cache(yes_im_sure: bool = False):
 
     # prompt the user to navigate to the Skyrim SE directory if configured path
     # does not exist. (Fix previous double-negative logic.)
-    if not cfg.skyrim.exists():
-        # Ask the user for the Skyrim SE Data folder. If they cancel, askdirectory
-        # returns an empty string; treat that as a user abort.
-        new_path = filedialog.askdirectory(title="Select Skyrim SE Data folder.", mustexist=True)
-        if not new_path or new_path == "":
-            raise errors.UserAbort(message="Operation cancelled by user.")
-
-        # Verify the selected directory contains the expected cache files.
-        if not (Path(new_path) / 'meshes' / 'animationdatasinglefile.txt').exists() or not (Path(new_path) / 'meshes' / 'animationsetdatasinglefile.txt').exists():
-            raise FileNotFoundError("Selected directory does not appear to contain a valid animation cache.")
-
-        try:
-            cfg.write_to_config('PATHS', 'sPathSSE', str(new_path))
-        except (OSError, PermissionError) as e:
-            raise errors.ConfigError(message=f"Failed to write to config: {e}") from e
-
-    # make sure the animation cache is unpacked from the bsa.
-    if not (cfg.skyrim / "meshes" / "animationdatasinglefile.txt").exists() or not (cfg.skyrim / "meshes" / "animationsetdatasinglefile.txt").exists():
-        
-        # if we are missing the animations bsa entirely, abort.
-        if not (cfg.skyrim / "Skyrim - Animations.bsa").exists():
-            raise FileNotFoundError(str(cfg.skyrim / "Skyrim - Animations.bsa"))
-
-        if not util.prompt_yes_no(message="Animation cache appears to be missing. Unpack?",
-                           message_y="Unpacking animation cache from BSA.",
-                           message_n="SkyCAT SE requires a working animation cache to function. Cancelling.") and not yes_im_sure:
-            raise errors.UserAbort(message="Operation cancelled by user.")
-        
-        unpack_vanilla_cache()
+    if not cfg.skyrim.exists() or not util.check_valid_directory(cfg.skyrim):
+        cfg.setup_config()
 
     try:      
         os.makedirs(cfg.cache, exist_ok=True)
@@ -127,28 +100,26 @@ def can_be_merged(project_name: str):
     logging.warning(f"Warning: {project_name} does not exist.")
     return False
 
-def unpack_vanilla_cache():
-    cfg = config.get_global('config')
-    try:
-        anims_archive = sse_bsa.BSAArchive(Path(cfg.skyrim / "Skyrim - Animations.bsa"))
-        anims_archive.extract_file(Path("meshes") / "animationdatasinglefile.txt", Path(cfg.skyrim))
-        anims_archive.extract_file(Path("meshes") / "animationsetdatasinglefile.txt", Path(cfg.skyrim))
-    except (OSError, RuntimeError) as e:
-        raise errors.CacheError(path=str(cfg.skyrim), message=f"Failed to unpack vanilla cache: {e}") from e
-    return 0
 
-def restore_vanilla_cache(yes_im_sure=False):
-    ud = config.get_global('update')        
-    
-    if util.prompt_yes_no("This will overwrite your current animation cache with the vanilla cache. Continue?",
+
+def restore_vanilla_cache():
+    cfg = config.get_global('config')
+    ud = config.get_global('update')    
+    yes_im_sure = config.get_global('yesimsure')
+
+    if not yes_im_sure:
+        if util.prompt_yes_no("This will overwrite your current animation cache with the vanilla cache. Continue?",
                               message_y="Restoring vanilla cache.",
                               message_n="Cancelling operation.") or yes_im_sure:
-        unpack_vanilla_cache()
-        if ud.update_cache() != 0:
-            raise errors.CacheError(message="Failed to update after restoring vanilla cache.")
+            util.unpack_vanilla_cache(cfg.skyrim)
+    else:
+        util.unpack_vanilla_cache(cfg.skyrim)
 
-        logging.info("Vanilla cache restored.")
-        return
+    if ud.update_cache() != 0:
+        raise errors.CacheError(message="Failed to update after restoring vanilla cache.")
+
+    logging.info("Vanilla cache restored.")
+    return
 
 def get_creature_projects(list_projects: list[str]):
     cfg = config.get_global('config')
