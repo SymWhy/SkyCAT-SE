@@ -1,4 +1,4 @@
-# SkyCAT SE - Skyrim SE Cache Assembly Tool 0.1.0a
+# SkyCAT SE - Skyrim SE Cache Assembly Tool 0.0.1a
 Small app to patch custom Havok creature projects.
 
 ## Currently in pre-alpha
@@ -25,13 +25,31 @@ Your cache is now back to vanilla state.\
 Run `skycat appendall` to merge the extracted files with the vanilla cache.\
 You should now have two merged singlefiles in your cache. Move them to a new mod folder. Delete `animationdata/` and `animationsetdata/`.
 Enable the new mod in MO and run the game.
-(A simpler method is in the works.)
 
 ## Appending New Projects
 [Follow this guide to custom creature implementation up to step 5.](https://wiki.beyondskyrim.org/wiki/Arcane_University:Implementation_of_Custom_Animations#Custom_animated_creature_implementation)\
 Delete the resulting `animationdata\`, `animationsetdata\`, `animationdatasinglefile.txt`, and `animationsetdatasinglefile.txt`.\
 Run `skycat extract [donorproject]` with the same donor project you used for your custom creature.\
-Make sure you have a new `animationdata\` and `animationsetdata\` in your Data folder, and functioning cache files to append it to.\
+Make sure you have a new `animationdata\` and `animationsetdata\` in your Data folder. Change all instances of the vanilla creature's name to the name of your new creature. You must use the same project name for all the files.\
+
+### Expected file structure
+>(Case insensitive)\
+>Data/\
+>|__ Meshes/\
+>&emsp;|__ AnimationData/\
+>&emsp;&emsp;|__ [YourCreature]Project.txt\
+>&emsp;&emsp;|__ BoundAnims/\
+>&emsp;&emsp;&emsp;|__ Anims_[YourCreature]Project.txt\
+>\
+>&emsp;|__ AnimationSetData/ \
+>&emsp;&emsp;|__ [YourCreature]ProjectData/ \
+>&emsp;&emsp;&emsp;|__ [YourCreature]Project.txt <- contains a list of cache files.\
+>&emsp;&emsp;&emsp;|__ FullCreature.txt <- As many as you need, name it whatever you want.\
+>\
+>|__ Skyrim - Animations.bsa\
+
+Also go into `animationdata\yourcreatureproject.txt` and change the file paths to your creature's behavior and character hkx files.\
+Double check the paths in your plugin, and make sure they match up to your new hkx names.\
 Run `skycat append [yourproject]` with your project name.\
 Your new creature should now animate properly.
 
@@ -82,25 +100,3 @@ Example build string:\
 * The loose cache files that ship with the game are outdated and may be incorrect. I strongly recommend you not use them for custom creatures. Instead copy the projects from the singlefiles directly, either by hand or with this program.
 * Currently SkyCAT is cmd based and can't be run through Mod Organizer.
 * Windows only at this time.
-
-## Planned Functions
-* Auto-merge caches
-* Better backup/restore
-* More thorough cache validation
-* Project editing
-
-## Expected file structure
-(Case insensitive)\
-Data/\
-|__ Meshes/\
-&emsp;|__ AnimationData/\
-&emsp;&emsp;|__ [YourCreature]Project.txt\
-&emsp;&emsp;|__ BoundAnims/\
-&emsp;&emsp;&emsp;|__ Anims_[YourCreature]Project.txt\
-\
-&emsp;|__ AnimationSetData/ \
-&emsp;&emsp;|__ [YourCreature]ProjectData/ \
-&emsp;&emsp;&emsp;|__ [YourCreature]Project.txt <- contains a list of cache files.\
-&emsp;&emsp;&emsp;|__ FullCreature.txt <- As many as you need, name it whatever you want.\
-\
-|__ Skyrim - Animations.bsa
