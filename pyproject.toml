@@ -1,0 +1,16 @@
+[project]
+name = "skycat"
+version = "0.1.0a0"
+description = "SkyCAT-SE - Skyrim Cache Assembly Tool"
+authors = [{name = Sym Whysel, email = "simone.whysel@gmail.com"}]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "sse_bsa",
+  "lz4",
+  "virtual_glob"
+]
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"

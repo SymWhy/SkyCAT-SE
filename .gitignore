@@ -1,3 +1,13 @@
+.conda/
+.github/
 .vscode/
-meshes/
-builds/
+myenv/
+backups/
+build/
+cache/
+dist/
+exe-goes-here.txt
+pyinstaller.txt
+__pycache__/
+skycat.ini
+skycat.spec
