@@ -49,9 +49,11 @@ Make sure you have a new `animationdata\` and `animationsetdata\` in your Data f
 >\
 >|__ Skyrim - Animations.bsa\
 
-Also go into `animationdata\yourcreatureproject.txt` and change the file paths to your creature's behavior and character hkx files.\
+Go into `animationdata\yourcreatureproject.txt` and change the file paths to your creature's behavior and character hkx files.\
+Run `skycat getchecksum [animation path]` on one of your animations and copy down the first line. Replace the vanilla paths with this one. (Check [here](https://drive.google.com/file/d/1e35NtA9qIPGBgWDvMb5eTqEJLPM_kG1c/view?usp=sharing) for the translated paths. Note that some use different paths to killmove animations. Skip those, they are beyond the scope of this tutorial.)\
 Double check the paths in your plugin, and make sure they match up to your new hkx names.\
 Run `skycat append [yourproject]` with your project name.\
+Implement the race and npc records for your creature in the CK.\
 Your new creature should now animate properly.
 
 ## Installation
@@ -88,11 +90,13 @@ Example build string:\
 | changedir, cd | `-cd` | Changes the working Data directory. Path optional.| `skycat -changedir "C:\...path to Skyrim Special Edition\Data\meshes"` |
 | extract | `-extract` | Extract one or more projects by name from the cache. Add `-remove` to delete from the cache after unpacking. | `skycat -extract catproject` |
 | extractall | `-extractall` | Extract all non-vanilla projects. Add `-ireallymeanit` to include vanilla ones (not recommended). | `skycat -extractall` |
-| append (project) | `-append` | Append one or more loose projects into the cache. | `skycat -append catproject` |
+| append [project] | `-append` | Append one or more loose projects into the cache. | `skycat -append catproject` |
 | appendall | `-appendall` | Append all available, mergeable projects to the cache. | `skycat -appendall` |
 | backup | `-backup` | Back up your current cache files. (By default stored in the SkyCAT root directory.)| `skycat -backup` |
 | restore | `-restore` | Restore your cache files from backup. | `skycat -restore` |
 | restorefromarchive | `-restorefromarchive` | Revert cache files to vanilla. | `skycat -restorefromarchive` |
+| CRC32 [string] | `-crc32` | Create CRC32 checksum from string. | `skycat -crc32 string` |
+| getchecksum | `-getchecksum` | Get CRC32 checksum series from an animation file path. | `skycat -getchecksum` |
 | dumpjson | `-dumpjson` | Dump JSON file to APPDATA. | `skycat -dumpjson` |
 | level [level] | `-level` | Change logging level (e.g., DEBUG, INFO, WARNING, ERROR). | `skycat -level [LEVEL]` |
 | help | `-help` | Lists all commands and their descriptions. | `skycat -help` |
