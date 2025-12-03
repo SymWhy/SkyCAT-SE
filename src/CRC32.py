@@ -2,7 +2,6 @@
 # This code was adapted to Python from Pentalimbed's Haviour tool.
 # Written with the assistance of AI.
 
-
 def mirror_bit(val, num):
 
     retval = 0
@@ -55,11 +54,13 @@ class CRC32:
     _table_generated = False
 
     @staticmethod
-    def update(
+    def convert(
         data: bytes, # Pointer to input data
         initial: int = 0, # Starting CRC value (default 0)
         final_xor: int = 0 # Final XOR value (default 0)
     ):
+
+        data = bytes(data, 'utf-8')
         # Ensure the lookup table is only generated once
         if not CRC32._table_generated:
             CRC32.generate_table(table=CRC32.table)

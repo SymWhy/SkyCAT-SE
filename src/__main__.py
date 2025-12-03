@@ -5,6 +5,8 @@ from pathlib import Path
 
 import config, cache, errors, system, update, util
 
+from CRC32 import CRC32
+
 import extract, append
 
 
@@ -49,6 +51,19 @@ def build_parser():
   parser.add_argument("-restorefromarchive",
                       help="Restore the vanilla animation cache from the program archive.",
                       action='store_true')
+  
+  parser.add_argument("-crc32",
+                      help="Calculate the CRC32 checksum of a given string.",
+                      action='store',
+                      metavar='STRING')
+  
+  parser.add_argument("-getchecksum",
+                        help="Calculate the CRC32 checksum of a given animation file.",
+                        action='store',
+                        nargs='?',
+                        const='',
+                        default=None,
+                        metavar='PATH')
   
   parser.add_argument("-gui",
                       help="Launch the full program.",
@@ -96,7 +111,9 @@ def has_cli_actions(parsed_args) -> bool:
         parsed_args.gui,
         parsed_args.backup,
         parsed_args.restore,
-        parsed_args.restorefromarchive
+        parsed_args.restorefromarchive,
+        parsed_args.crc32,
+        parsed_args.getchecksum
     ])
 
 
@@ -153,6 +170,15 @@ def process_cli(args):
 
     if args.appendall:
         append.append_all_available()
+
+    if args.crc32:
+        my_crc32 = CRC32()
+        checksum = my_crc32.convert(data=args.crc32)
+        print(checksum)
+
+    if args.getchecksum:
+        util.get_file_crc32(Path(args.getchecksum))
+
     return 0
 
 # only runs this when you open the application
@@ -176,8 +202,10 @@ def interactive_loop(args=None):
                       "  backup                 - Create a backup of the current animation cache.\n",
                       "  restore                - Restore the animation cache from the latest backup.\n",
                       "  restorefromarchive     - Restore the vanilla animation cache from the program archive.\n",
+                      "  CRC32 [string]         - Calculate the CRC32 checksum of a given string.\n",
+                      "  getchecksum [file]     - Calculate the CRC32 checksum of a given animation file.\n",
                       "  dumpjson               - Dump the current animation cache data to a JSON file.\n",
-                      "  level [LEVEL]         - Set the logging level (e.g., DEBUG, INFO, WARNING, ERROR).\n",)
+                      "  level [LEVEL]          - Set the logging level (e.g., DEBUG, INFO, WARNING, ERROR).\n",)
 
             case "update":
                 ud.update_cache()
@@ -244,6 +272,26 @@ def interactive_loop(args=None):
                     logging.info(f"Log level set to {level}.")
                 except Exception:
                     logging.exception(f"Failed to set log level.")
+
+            case _ if inp.startswith("crc32 "):
+                try:
+                    string = inp.split(" ", 1)[1]
+                    my_crc = CRC32()
+                    checksum = my_crc.convert(data=string)
+                    print(f"CRC32 Checksum of '{string}': {checksum}")
+                except Exception:
+                    logging.exception(f"Failed to compute CRC32.")
+
+            case _ if inp.startswith("getchecksum"):
+                try:
+                    parts = inp.split(" ", 1)
+                    if len(parts) > 1:
+                        path = Path(parts[1])
+                    else:
+                        path = None
+                    util.get_file_crc32(path)
+                except Exception:
+                    logging.exception(f"Failed to compute file CRC32.")
 
             case "dumpjson" | "dumpjason":
                 try:

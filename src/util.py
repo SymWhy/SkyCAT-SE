@@ -5,10 +5,12 @@ from pathlib import Path
 import json
 import logging
 import sys
+from tkinter import filedialog
 
 import sse_bsa
 
 import errors
+from CRC32 import CRC32
 
 
 # needs optimizing
@@ -140,3 +142,18 @@ def check_valid_directory(path: Path | str) -> bool:
         return False
 
     
+def get_file_crc32(path: Path=None) -> int:
+    if path is None or path is '':
+        path = filedialog.askopenfilename(title="Select animation file to calculate CRC32 for.", filetypes=[("Havok animation files", "*.hkx")])
+
+        directory = Path(path).parent.name.casefold()
+        filename = Path(path).name.casefold()
+        extension = "hkx"
+    
+    my_crc32 = CRC32()
+    print(f"Calculating CRC32 for file: {path}")
+
+    print(f"{my_crc32.convert(data=directory)}")
+    print(f"{my_crc32.convert(data=filename)}")
+    print(f"{my_crc32.convert(data=extension)}")
+    return 0
