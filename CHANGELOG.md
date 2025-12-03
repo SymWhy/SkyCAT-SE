@@ -5,7 +5,6 @@
 ### New Features
 * Calculate CRC32 checksum from string
 * Calculate CRC32 checksum series from hkx path
-\
 
 ## 0.1.0-alpha.1 (2025-11-26)
 
