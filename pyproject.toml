@@ -1,6 +1,6 @@
 [project]
-name = "skycat"
-version = "0.1.0a0"
+name = "SkyCAT-SE"
+version = "0.1.0-alpha.1"
 description = "SkyCAT-SE - Skyrim Cache Assembly Tool"
 authors = [{name = Sym Whysel, email = "simone.whysel@gmail.com"}]
 readme = "README.md"
