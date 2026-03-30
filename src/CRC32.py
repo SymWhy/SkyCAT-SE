@@ -1,6 +1,5 @@
 # Note: This CRC32 implementation is based on the implementation used in TESV Skyrim.
 # This code was adapted to Python from Pentalimbed's Haviour tool.
-# Written with the assistance of AI.
 
 
 def mirror_bit(val, num):

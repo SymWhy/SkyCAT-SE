@@ -1,0 +1,1 @@
+The GitHub Copilot LLM was used as an educational reference, an autocomplete tool, and as an additional method of catching bugs. Any AI generated code used was carefully edited and reviewed by a human before implementation. On principle, I will not publish code that I cannot write or explain myself.
